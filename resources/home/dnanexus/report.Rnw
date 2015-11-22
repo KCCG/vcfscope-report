@@ -33,6 +33,7 @@
 % LIBRARIES AND HELPER FUNCTIONS
 %--------------------------------------------------------------------
 <<load-libs, cache=FALSE, echo=FALSE>>=
+suppressMessages(library(GenomicRanges))
 suppressMessages(library(ggplot2))
 suppressMessages(library(plyr))
 suppressMessages(library(xtable))
@@ -45,21 +46,31 @@ suppressMessages(source("report_functions.R"))
 %--------------------------------------------------------------------
 <<load-results, cache=FALSE, echo=FALSE>>=
 env = Sys.getenv(names = TRUE)
-rds_list_path = env$PARAM_INPUT_RDS_PATH
+rds_list_path = env["PARAM_INPUT_RDS_PATH"]
 rds_list = scan(rds_list_path, character())
 
 data = list()
 for (path in rds_list)
 {
-    data[path] = readRDS(path)
+    data[[path]] = readRDS(path)
+
+    # Ensure that all the input files were generated using the same
+    # settings.
+    stopifnot(data[[path]]$params$criterion == data[[1]]$params$criterion)
+    stopifnot(data[[path]]$params$criterion_latex == data[[1]]$params$criterion_latex)
+    stopifnot(data[[path]]$params$region.subset == data[[1]]$params$region.subset)
+    stopifnot(data[[path]]$params$region.subset.path == data[[1]]$params$region.subset.path)
+    stopifnot(data[[path]]$params$path.gold.variants.orig == data[[1]]$params$path.gold.variants.orig)
+    stopifnot(data[[path]]$params$path.gold.regions.orig == data[[1]]$params$path.gold.regions.orig)
+    stopifnot(data[[path]]$params$genome == data[[1]]$params$genome)
+    stopifnot(data[[path]]$params$path.genome == data[[1]]$params$path.genome)
+    for (i in names(data[[1]]$params$version))
+        stopifnot(data[[path]]$params$version[[i]] == data[[1]]$params$version[[i]])
 }
 
-# params = temp$params
-# class_subsets.performance_thresholded = temp$class_subsets.performance_thresholded
-# report = temp$report
-# regions = temp$regions
-# regions.orig = temp$regions.orig
-# universe = temp$universe
+universe = data[[1]]$universe
+shared_params = data[[1]]$params[c("criterion", "criterion_latex", "region.subset", "region.subset.path", "path.gold.variants.orig", "path.gold.regions.orig", "genome", "path.genome", "version")]
+shared_hashes = data[[1]]$hashes[c("region.subset.path", "path.gold.variants.orig", "path.gold.regions.orig", "path.genome")]
 @
 
 
@@ -83,14 +94,14 @@ options(warn = 1)
 
 
 % SUPPLIED REGION BED DETAILS
-%--------------------------------------------------------------------
+% --------------------------------------------------------------------
 <<region-details, echo=FALSE, cache=FALSE>>=
 temp.region_md5 = "NA"
 temp.region_label = "NO"
-if (params$region.subset)
+if (shared_params$region.subset)
 {
     temp.region_label = "YES"
-    temp.region_md5 = fileMD5(params$region.subset.path)
+    temp.region_md5 = data[[1]]$hashes$region.subset.path
 }
 @
 
@@ -102,38 +113,48 @@ if (params$region.subset)
 \newcommand{\HRule}{\rule{\linewidth}{0.5mm}}
 
 \fancyhf{}
-\lhead{WGS Performance Report (v\texttt{\Sexpr{params$version$script}}): \texttt{\Sexpr{texquote(params$sample.id)}}}
+\lhead{WGS Performance Report (v\texttt{\Sexpr{shared_params$version$script}})}
 \rhead{Page \thepage\ of \pageref{LastPage}}
 
 \let\endtitlepage\relax
 \begin{titlepage}
 \begin{flushleft}
-\LARGE{WGS Performance Report: \texttt{\Sexpr{texquote(params$sample.id)}}}
+\LARGE{WGS Performance Report}
 \HRule
 \end{flushleft}
 \end{titlepage}
 
 
 \section{Summary}
-Sample ID: \texttt{\Sexpr{texquote(params$sample.id)}} \\
-Input VCF: \texttt{\url{\Sexpr{params$path.test.orig}}} \\
+Number of samples: \texttt{\Sexpr{length(data)}} \\
 Analysis restricted to regions? \Sexpr{temp.region_label} \\
-Report version: \texttt{\Sexpr{params$version$script}} \\
-Report time: \texttt{\Sexpr{texquote(report$gentime)}} \\
-Call criterion: \Sexpr{report$criterion_latex} \\
+Report version: \texttt{\Sexpr{shared_params$version$script}} \\
+Report time: \texttt{\Sexpr{date()}} \\
+Call criterion: \Sexpr{shared_params$criterion_latex} \\
 
 
+\section{Samples}
+<<sample-table,results='asis'>>=
+temp.sample_table = xtable(data.frame(
+    "ID" = 1:length(data),
+    "Name" = sapply(data, function(x) texquote(x$params$sample.id)),
+    "VCF" = paste("\\texttt{", sapply(data, function(x) texquote(gsub(".*/", "", x$params$path.test.orig))), "}"),
+    "MD5" = paste("\\texttt{", sapply(data, function(x) gsub("\\s+$", "", x$hashes$path.test.orig)), "}")),
+    align = "lllll")
+print(temp.sample_table, sanitize.text.function = function(x) x, include.rownames = FALSE)
+@
+
+
+\section{Region analysed}
 <<subset-calcs>>=
 temp.size_genome = sum(as.numeric(width(universe$genome)))      # | GENOME |
 temp.size_subset = sum(as.numeric(width(universe$subset)))      # | BED ^ GENOME |
 temp.size_gold = sum(as.numeric(width(universe$analysis)))      # | GIAB ^ BED ^ GENOME |
 @
 
+
 \begin{itemize}
-\item Of \Sexpr{temp.size_genome} bases in the genome, \Sexpr{temp.size_subset} (\Sexpr{temp.size_subset / temp.size_genome * 100}\%) were in the target analysis regions.
-\item Of \Sexpr{temp.size_subset} bases in the target analysis regions, \Sexpr{temp.size_gold} (\Sexpr{temp.size_gold / temp.size_subset * 100}\%) had gold-standard genotype available.
-% \item Of \Sexpr{temp.size_gold} target bases with gold-standard calls, \Sexpr{temp.size_gold_lcr} (\Sexpr{temp.size_gold_lcr / temp.size_gold * 100}\%) were in low-complexity regions.
-% \item Of \Sexpr{temp.size_notgold} target bases without gold-standard calls, \Sexpr{temp.size_notgold_lcr} (\Sexpr{temp.size_notgold_lcr / temp.size_notgold * 100}\%) were in low-complexity regions.
+Of the \Sexpr{formatC2(temp.size_genome, digits=0, format="f", big.mark=",")} bases in the genome, \Sexpr{formatC2(temp.size_subset, digits=0, format="f", big.mark=",")} (\Sexpr{round(temp.size_subset / temp.size_genome * 100, 2)}\%) were in the supplied report target regions.  Of the target bases, \Sexpr{formatC2(temp.size_gold, digits=0, format="f", big.mark=",")} (\Sexpr{round(temp.size_gold / temp.size_subset * 100, 2)}\%) had gold-standard genotype available, and were used in this report.
 \end{itemize}
 
 <<subset-plots,fig.height=4,fig.width=6.4,out.width='4in'>>=
@@ -141,47 +162,23 @@ plotGenomeBreakdown(f_targ_of_wg = temp.size_subset / temp.size_genome, f_gold_o
 @
 
 
-<<performance-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
-marginalizePerformance = function(perf_data, subset, vars, ...)
-{
-    ddply(perf_data[eval(subset, perf_data, parent.frame()),], vars, function(x) { 
-        ntp = sum(x$ntp)
-        nfn = sum(x$nfn)
-        nfp = sum(x$nfp)
-        ntn = sum(x$ntn)
+\section{Performance}
+% <<performance-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<performance-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='asis',echo=TRUE>>=
 
-        if (ntp + nfn == 0)
-        {
-            sens = NA
-            sens.lci = NA
-            sens.uci = NA
-        }
-        else
-        {
-            ci_test = binom.test(ntp, ntp + nfn, ...)
-            sens = as.vector(ci_test$estimate)
-            sens.lci = ci_test$conf.int[1]
-            sens.uci = ci_test$conf.int[2]
-        }
-
-        c("sens" = sens, "sens.lci" = sens.lci, "sens.uci" = sens.uci, "n" = ntp + nfn + nfp + ntn, ntp = ntp, nfn = nfn, nfp = nfp, ntn = ntn)
-    }, .drop = TRUE)
-}
-
-
-ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg)), aes(x = zyg, y = sens, fill = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg)), aes(x = zyg, y = sens, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
     geom_errorbar(aes(ymin = sens.lci, ymax = sens.uci), width = 0.2) + 
     labs(x = "", y = "Sensitivity", fill = "Zygosity", title = "SNV Detection") + 
     theme_bw() + ylim(0, 1)
 
-ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg)), aes(x = zyg, y = n, fill = zyg)) + 
+ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg)), aes(x = zyg, y = n, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
     labs(x = "", y = "Number of mutations", fill = "Zygosity", title = "SNV Counts in Gold Standard") + 
     theme_bw()
 
 
-ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth)), aes(x = depth, y = sens, group = zyg, colour = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth)), aes(x = depth, y = sens, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lci, ymax = sens.uci, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
@@ -189,7 +186,7 @@ ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(mutty
     theme_bw() + ylim(0, 1)
 
 ggplot(
-    marginalizePerformance(class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth)), 
+    marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth)), 
     aes(x = depth, y = ntp + nfn, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_point(size = 2, shape = 21, fill = "white") + 
@@ -197,14 +194,14 @@ ggplot(
     theme_bw()
 
 
-ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = sens, group = zyg, colour = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = sens, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lci, ymax = sens.uci, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases inserted (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Insertion Detection Performance") + 
     theme_bw() + ylim(0, 1)
 
-# ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize, depth)), aes(x = depth, y = sens, group = zyg, colour = zyg)) + 
+# ggplot(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize, depth)), aes(x = depth, y = sens, group = zyg, colour = ) + 
 #     geom_line() + 
 #     geom_ribbon(aes(ymin = sens.lci, ymax = sens.uci, fill = zyg), alpha = 0.25, colour = NA) + 
 #     geom_point(size = 2, shape = 21, fill = "white") + 
@@ -212,7 +209,7 @@ ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(mutty
 #     theme_bw() + ylim(0, 1) + facet_wrap(~ mutsize)
 
 ggplot(
-    marginalizePerformance(class_subsets.performance_thresholded, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), 
+    marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), 
     aes(x = mutsize, y = ntp + nfn, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_point(size = 2, shape = 21, fill = "white") + 
@@ -220,21 +217,21 @@ ggplot(
     theme_bw()
 
 
-ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = sens, group = zyg, colour = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = sens, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lci, ymax = sens.uci, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases deleted (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Deletion Detection Performance") + 
     theme_bw() + ylim(0, 1)
 
-# ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize, depth)), aes(x = depth, y = sens, group = zyg, colour = zyg)) + 
+# ggplot(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize, depth)), aes(x = depth, y = sens, group = zyg, colour = ) + 
 #     geom_line() + 
 #     geom_ribbon(aes(ymin = sens.lci, ymax = sens.uci, fill = zyg), alpha = 0.25, colour = NA) + 
 #     geom_point(size = 2, shape = 21, fill = "white") + 
 #     labs(x = "Sequence depth (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Deletion Detection Performance") + 
 #     theme_bw() + ylim(0, 1) + facet_wrap(~ mutsize)
 
-ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = ntp + nfn, group = zyg, colour = zyg)) + 
+ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = ntp + nfn, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases deleted (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "Deletion Counts in Gold Standard") + 
@@ -245,7 +242,7 @@ ggplot(marginalizePerformance(class_subsets.performance_thresholded, quote(mutty
 # Depth FPR: For each depth bin, divide nfp by n.  This is rough as n is the number of variants, not the number of bases,
 # in a given depth window.  This approximation assumes that variants are evenly distributed, irrespective of depth -- 
 # probably not the case.
-temp_nfp = marginalizePerformance(class_subsets.performance_thresholded, quote(TRUE), .(depth))
+temp_nfp = calcPerformanceStats(data, quote(TRUE), .(depth))
 temp_nfp$approx_fpr = temp_nfp$nfp / (temp_nfp$ntp + temp_nfp$nfn) * sum(temp_nfp$ntp + temp_nfp$nfn) / sum(as.numeric(width(universe$analysis))) * 1e6
 
 ggplot(temp_nfp, aes(x = depth, y = approx_fpr)) + 
@@ -282,26 +279,20 @@ ggplot(temp_nfp, aes(x = depth, y = nfp)) +
 \section{Versions}
 \begin{itemize}
 \item Software: \begin{itemize}
-	\item Performance script: \texttt{\Sexpr{texquote(params$version$script)}}
+	\item Performance script: \texttt{\Sexpr{texquote(shared_params$version$script)}}
 	\item R: \texttt{\Sexpr{texquote(R.version$version.string)}} (\texttt{\Sexpr{texquote(R.version$platform)}})
-	\item Genome: \texttt{\Sexpr{texquote(params$genome)}} (\texttt{\Sexpr{packageVersion(params$genome)}})
-	\item Java: \texttt{\Sexpr{texquote(params$version$java)}}
-	\item RTG core: \texttt{\Sexpr{texquote(params$version$rtg)}}
-	\item Bedtools: \texttt{\Sexpr{texquote(params$version$bedtools)}}
-	\item Execution host: \texttt{\Sexpr{texquote(params$version$host)}}
-	\item Execution time: \Sexpr{texquote(report$gentime)}
+	\item Genome: \texttt{\Sexpr{texquote(shared_params$genome)}} (\texttt{\Sexpr{packageVersion(shared_params$genome)}})
+	\item Java: \texttt{\Sexpr{texquote(shared_params$version$java)}}
+	\item RTG core: \texttt{\Sexpr{texquote(shared_params$version$rtg)}}
+	\item Bedtools: \texttt{\Sexpr{texquote(shared_params$version$bedtools)}}
+	\item Execution time: \Sexpr{date()}
 \end{itemize}
 \item Data: \begin{itemize}
-	\item Input VCF: \texttt{\url{\Sexpr{params$path.test.orig}}} (MD5 \texttt{\Sexpr{texquote(fileMD5(params$path.test.orig))}})
-	\item Sample ID: \texttt{\Sexpr{texquote(params$sample.id)}}
-	\item GiaB VCF: \texttt{\url{\Sexpr{params$path.gold.variants.orig}}} (MD5 \texttt{\Sexpr{texquote(fileMD5(params$path.gold.variants.orig))}})
-	\item GiaB BED: \texttt{\url{\Sexpr{params$path.gold.regions.orig}}} (MD5 \texttt{\Sexpr{texquote(fileMD5(params$path.gold.regions.orig))}})
+	\item GiaB VCF: \texttt{\url{\Sexpr{shared_params$path.gold.variants.orig}}} (MD5 \texttt{\Sexpr{texquote(shared_hashes$path.gold.variants.orig)}})
+	\item GiaB BED: \texttt{\url{\Sexpr{shared_params$path.gold.regions.orig}}} (MD5 \texttt{\Sexpr{texquote(shared_hashes$path.gold.regions.orig)}})
 	\item Analysis restricted to regions? \Sexpr{temp.region_label} \begin{itemize}
-		\item Analysis region BED: \texttt{\url{\Sexpr{params$region.subset.path}}} (MD5 \texttt{\Sexpr{texquote(temp.region_md5)}})
+		\item Analysis region BED: \texttt{\url{\Sexpr{shared_params$region.subset.path}}} (MD5 \texttt{\Sexpr{texquote(temp.region_md5)}})
 	\end{itemize}
-	% \item Sequence masks: \texttt{\url{\Sexpr{params$path.mask.regions.prefix}}} \begin{itemize}
-		% \item Low complexity: \texttt{\Sexpr{gsub(".*/", "", params$path.mdust)}} (MD5 \texttt{\Sexpr{texquote(fileMD5(params$path.mdust))}})
-	% \end{itemize}
 \end{itemize}
 
 \end{document}

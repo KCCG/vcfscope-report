@@ -1,21 +1,9 @@
 library(ggplot2)
 library(scales)
+library(plyr)
 
 
 texquote = function(str) gsub("_", "\\\\_", sub("\\s+$", "", str))
-
-
-readpipe = function(command, n = 1e6) {
-    conn = pipe(command)
-    data = readChar(conn, n)
-    close(conn)
-    data
-}
-
-
-fileMD5 = function(path) {
-    readpipe(sprintf("md5sum %s | sed 's/ .*//'", path))
-}
 
 
 formatC2 = function(x, ...)
@@ -66,6 +54,46 @@ plotGenomeBreakdown = function(f_targ_of_wg, f_gold_of_targ,
     legend("bottom", legend = c("Genome", "Supplied region", "In gold standard"), fill = c(grey(1), fill.targ, fill.giab), horiz = TRUE, bty = "n")
 
     par(pars)
+}
+
+
+marginalizePerformance = function(perf_data, subset, vars, ...)
+{
+    ddply(perf_data[eval(subset, perf_data, parent.frame()),], vars, function(x) { 
+        ntp = sum(x$ntp)
+        nfn = sum(x$nfn)
+        nfp = sum(x$nfp)
+        ntn = sum(x$ntn)
+
+        if (ntp + nfn == 0)
+        {
+            sens = NA
+            sens.lci = NA
+            sens.uci = NA
+        }
+        else
+        {
+            ci_test = binom.test(ntp, ntp + nfn, ...)
+            sens = as.vector(ci_test$estimate)
+            sens.lci = ci_test$conf.int[1]
+            sens.uci = ci_test$conf.int[2]
+        }
+
+        c("sens" = sens, "sens.lci" = sens.lci, "sens.uci" = sens.uci, "n" = ntp + nfn + nfp + ntn, ntp = ntp, nfn = nfn, nfp = nfp, ntn = ntn)
+    }, .drop = TRUE)
+}
+
+
+calcPerformanceStats = function(data, subset, vars, ..., conf_level = 0.95)
+{
+    marginalized_values = ldply(data, function(d) marginalizePerformance(d$class_subsets.performance_thresholded, subset, vars, ...))
+
+    combined_stats = ddply(marginalized_values, vars, function(m) {
+        ci = replicatedBinomialCI(m$ntp, m$ntp[1] + m$nfn[1], conf_level = conf_level)
+        c(sens = ci[["median"]], sens.lci = ci[["lower"]], sens.uci = ci[["upper"]], n = m$m[1])
+    })
+
+    combined_stats
 }
 
 

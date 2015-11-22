@@ -77,8 +77,8 @@ if [ $# -ne 2 ]; then
 fi
 
 
-export PARAM_INPUT_RDS_PATH=$1
-PARAM_OUTPUT_PDF_PATH=$2
+export PARAM_INPUT_RDS_PATH=$(readlink -f $1)
+PARAM_OUTPUT_PDF_PATH=$(readlink -f $2)
 
 
 #####################################################################
@@ -120,6 +120,8 @@ fi
 # #####################################################################
 message "Generating report..."
 
+cp ${PARAM_SCRIPT_PATH}/report.Rnw ${PARAM_SCRATCH}
+cp ${PARAM_SCRIPT_PATH}/report_functions.R ${PARAM_SCRATCH}
 cd ${PARAM_SCRATCH}
 
 ${RSCRIPT} --vanilla -e "library(knitr); knit('report.Rnw', output = 'report.tex')"
