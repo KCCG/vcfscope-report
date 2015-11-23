@@ -44,7 +44,7 @@ suppressMessages(source("report_functions.R"))
 
 % ERROR BAR GLOBAL SETTINGS
 %--------------------------------------------------------------------
-<<settings>>=
+<<settings, cache=FALSE, echo=FALSE>>=
 CI_MODEL = "betabin"
 CI_LEVEL = 0.95
 @
