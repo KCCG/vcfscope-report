@@ -42,6 +42,14 @@ suppressMessages(source("report_functions.R"))
 @
 
 
+% ERROR BAR GLOBAL SETTINGS
+%--------------------------------------------------------------------
+<<settings>>=
+CI_MODEL = "betabin"
+CI_LEVEL = 0.95
+@
+
+
 % LOAD PRECOMPUTED RESULTS
 %--------------------------------------------------------------------
 <<load-results, cache=FALSE, echo=FALSE>>=
@@ -170,7 +178,7 @@ plotGenomeBreakdown(f_targ_of_wg = temp.size_subset / temp.size_genome, f_gold_o
 \section{Performance}
 \subsection{Sensitivity}
 <<sensitivity-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
-ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg)), aes(x = zyg, y = sens.est, fill = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = zyg, y = sens.est, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
     geom_errorbar(aes(ymin = sens.lcl, ymax = sens.ucl), width = 0.2) + 
     labs(x = "", y = "Sensitivity", fill = "Zygosity", title = "SNV Detection") + 
@@ -182,7 +190,7 @@ ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, q
     theme_bw()
 
 
-ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth)), aes(x = depth, y = sens.est, group = zyg, colour = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = depth, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
@@ -198,7 +206,7 @@ ggplot(
     theme_bw()
 
 
-ggplot(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
@@ -214,7 +222,7 @@ ggplot(
     theme_bw()
 
 
-ggplot(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
@@ -277,7 +285,7 @@ ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, q
 # scaling.
 
 # Calculate VFPRi (this is fpr.vs_depth$fpr.est)
-fpr.vs_depth = calcPerformanceStats(data, quote(TRUE), .(depth))
+fpr.vs_depth = calcPerformanceStats(data, quote(TRUE), .(depth), model = CI_MODEL, conf_level = CI_LEVEL)
 
 # Calculate:
 #   S     total analysis bases
@@ -359,6 +367,10 @@ ggplot(fpr.NFPi2, aes(x = depth, y = count, group = sample, colour = sample)) +
 	\item Analysis restricted to regions? \Sexpr{temp.region_label} \begin{itemize}
 		\item Analysis region BED: \texttt{\url{\Sexpr{shared_params$region.subset.path}}} (MD5 \texttt{\Sexpr{texquote(temp.region_md5)}})
 	\end{itemize}
+\item Statistics: \begin{itemize}
+    \item Error bar method: \texttt{\Sexpr{texquote(CI_MODEL)}}
+    \item Error bar level: \texttt{\Sexpr{CI_LEVEL}}
+    \end{itemize}
 \end{itemize}
 
 \end{document}
