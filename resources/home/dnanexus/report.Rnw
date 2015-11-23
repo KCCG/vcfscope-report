@@ -68,6 +68,11 @@ for (path in rds_list)
         stopifnot(data[[path]]$params$version[[i]] == data[[1]]$params$version[[i]])
 }
 
+data.labels = abbreviate(gsub(".*/", "", names(data)))
+names(data.labels) = names(data)
+for (i in seq_along(data))
+    data[[i]]$label = data.labels[[i]]
+
 universe = data[[1]]$universe
 shared_params = data[[1]]$params[c("criterion", "criterion_latex", "region.subset", "region.subset.path", "path.gold.variants.orig", "path.gold.regions.orig", "genome", "path.genome", "version")]
 shared_hashes = data[[1]]$hashes[c("region.subset.path", "path.gold.variants.orig", "path.gold.regions.orig", "path.genome")]
@@ -136,7 +141,7 @@ Call criterion: \Sexpr{shared_params$criterion_latex} \\
 \section{Samples}
 <<sample-table,results='asis'>>=
 temp.sample_table = xtable(data.frame(
-    "ID" = 1:length(data),
+    "Label" = sapply(data, function(x) texquote(x$label)),
     "Name" = sapply(data, function(x) texquote(x$params$sample.id)),
     "VCF" = paste("\\texttt{", sapply(data, function(x) texquote(gsub(".*/", "", x$params$path.test.orig))), "}"),
     "MD5" = paste("\\texttt{", sapply(data, function(x) gsub("\\s+$", "", x$hashes$path.test.orig)), "}")),
@@ -163,12 +168,11 @@ plotGenomeBreakdown(f_targ_of_wg = temp.size_subset / temp.size_genome, f_gold_o
 
 
 \section{Performance}
-% <<performance-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
-<<performance-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='asis',echo=TRUE>>=
-
-ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg)), aes(x = zyg, y = sens, fill = zyg)) + 
+\subsection{Sensitivity}
+<<sensitivity-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg)), aes(x = zyg, y = sens.est, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
-    geom_errorbar(aes(ymin = sens.lci, ymax = sens.uci), width = 0.2) + 
+    geom_errorbar(aes(ymin = sens.lcl, ymax = sens.ucl), width = 0.2) + 
     labs(x = "", y = "Sensitivity", fill = "Zygosity", title = "SNV Detection") + 
     theme_bw() + ylim(0, 1)
 
@@ -178,9 +182,9 @@ ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, q
     theme_bw()
 
 
-ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth)), aes(x = depth, y = sens, group = zyg, colour = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth)), aes(x = depth, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
-    geom_ribbon(aes(ymin = sens.lci, ymax = sens.uci, fill = zyg), alpha = 0.25, colour = NA) + 
+    geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Sequence depth (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "SNV Detection vs Depth") + 
     theme_bw() + ylim(0, 1)
@@ -194,19 +198,12 @@ ggplot(
     theme_bw()
 
 
-ggplot(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = sens, group = zyg, colour = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
-    geom_ribbon(aes(ymin = sens.lci, ymax = sens.uci, fill = zyg), alpha = 0.25, colour = NA) + 
+    geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases inserted (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Insertion Detection Performance") + 
     theme_bw() + ylim(0, 1)
-
-# ggplot(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize, depth)), aes(x = depth, y = sens, group = zyg, colour = ) + 
-#     geom_line() + 
-#     geom_ribbon(aes(ymin = sens.lci, ymax = sens.uci, fill = zyg), alpha = 0.25, colour = NA) + 
-#     geom_point(size = 2, shape = 21, fill = "white") + 
-#     labs(x = "Number of bases inserted (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Insertion Detection Performance") + 
-#     theme_bw() + ylim(0, 1) + facet_wrap(~ mutsize)
 
 ggplot(
     marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), 
@@ -217,59 +214,128 @@ ggplot(
     theme_bw()
 
 
-ggplot(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = sens, group = zyg, colour = zyg)) + 
+ggplot(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
-    geom_ribbon(aes(ymin = sens.lci, ymax = sens.uci, fill = zyg), alpha = 0.25, colour = NA) + 
+    geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases deleted (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Deletion Detection Performance") + 
     theme_bw() + ylim(0, 1)
-
-# ggplot(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize, depth)), aes(x = depth, y = sens, group = zyg, colour = ) + 
-#     geom_line() + 
-#     geom_ribbon(aes(ymin = sens.lci, ymax = sens.uci, fill = zyg), alpha = 0.25, colour = NA) + 
-#     geom_point(size = 2, shape = 21, fill = "white") + 
-#     labs(x = "Sequence depth (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Deletion Detection Performance") + 
-#     theme_bw() + ylim(0, 1) + facet_wrap(~ mutsize)
 
 ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = ntp + nfn, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases deleted (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "Deletion Counts in Gold Standard") + 
     theme_bw()
+@
 
 
+\subsection{False Positive Rate}
+<<false-positive-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+# FPR here is defined as number of FP calls per megabase of sequence within
+# the subset under consideration.  Unfortunately, this denominator (the
+# megabases of sequence in the subset) is not exactly known, as it cannot
+# be calculated from the VCF, instead requiring very slow subset counting
+# over the BAM depth data.  
 
-# Depth FPR: For each depth bin, divide nfp by n.  This is rough as n is the number of variants, not the number of bases,
-# in a given depth window.  This approximation assumes that variants are evenly distributed, irrespective of depth -- 
-# probably not the case.
-temp_nfp = calcPerformanceStats(data, quote(TRUE), .(depth))
-temp_nfp$approx_fpr = temp_nfp$nfp / (temp_nfp$ntp + temp_nfp$nfn) * sum(temp_nfp$ntp + temp_nfp$nfn) / sum(as.numeric(width(universe$analysis))) * 1e6
+# For now, get around this limitation by approximating the denominator.  
+# Do this by assuming that variants are evenly spread throughout the 
+# genome, irrespective of the value of subsetting covariates.  Then, the 
+# fraction of variants in a subset (relative to all variants) is 
+# proportional to the number of bases in the subset (relative to the 
+# number of bases in all subsets).
 
-ggplot(temp_nfp, aes(x = depth, y = approx_fpr)) + 
+# This is only an approximation for determining the FPR *within a subset*.
+# For the total FPR over the whole genome (all subsets combined), which
+# is the sum of all per-subset FPRs weighted by the relative subset
+# sizes, the approximated term falls out and the result is exact.
+
+# For example, in a given subset i,
+#   NFPi/Ni = VFPRi  # False positive rate (relative to vars)
+#   NFPi/Si = BFPRi  # False positive rate (relative to bases)
+# VFPRi (the rate of false positives in all variants) is what we can 
+# calculate, but we want BFPRi (the rate of false positives in all bases).
+# We don't know Si, but approximate it by:
+#   Si ~= Ni / N * S
+# Where Ni is the number of variants in the subset, N is the total count
+# of variants in all subsets, and S is the total number of bases in all
+# subsets.  Then,
+#   BFPRi ~= (NFPi/Ni) * (N/S)
+# To determine the portion of the total false positive rate contributed
+# by region i, BFPRi is weighted by Si/S:
+#   TFPRi = BFPRi * Si/S
+# And the total FPR is the sum of these TFPRis:
+#   TFPR = sum(TFPRi)
+# Substituting the approximation above:
+#   TFPRi = (NFPi/Ni) * (N/S) * Ni / N * S / S
+#         = NFPi/S
+# Which contains no approximated terms -- the result is exact, and
+# makes intuitive sense.
+
+# We put the above in the framework of confidence interval estimation
+# by calculating CIs on the NFPi/Ni ratio.  The scaling factors are
+# not based on random variables, so don't affect the CI beyond linear
+# scaling.
+
+# Calculate VFPRi (this is fpr.vs_depth$fpr.est)
+fpr.vs_depth = calcPerformanceStats(data, quote(TRUE), .(depth))
+
+# Calculate:
+#   S     total analysis bases
+#   NFPi  number of false positive variants in each depth class, grouped by sample
+#   Ni    number of true variants in each depth class, grouped by sample
+#   N     number of true variants overall (should be the same in all samples)
+fpr.S = sum(as.numeric(width(universe$analysis)))
+
+fpr.NFPi = sapply(data, function(x) dlply(x$class_subsets.performance_thresholded, .(depth), function(y) sum(y$nfp)))
+names(dimnames(fpr.NFPi)) = c("depth", "sample")
+fpr.NFPi = matrix(unlist(fpr.NFPi), ncol = length(data), dimnames = dimnames(fpr.NFPi))
+colnames(fpr.NFPi) = data.labels[colnames(fpr.NFPi)]
+
+fpr.Ni = sapply(data, function(x) dlply(x$class_subsets.performance_thresholded, .(depth), function(y) sum(y$ntp + y$nfn)))
+names(dimnames(fpr.Ni)) = c("depth", "sample")
+fpr.Ni = matrix(unlist(fpr.Ni), ncol = length(data), dimnames = dimnames(fpr.Ni))
+colnames(fpr.Ni) = data.labels[colnames(fpr.Ni)]
+
+fpr.N = colSums(fpr.Ni)
+stopifnot(length(unique(fpr.N)) == 1)
+fpr.N = fpr.N[[1]]
+
+# Use VFPRi estimates and bounds, and the scaling factors above, to
+# estimate BFPRi and bounds.
+# The 1e6 factor is to express the FPR in false positives per megabase
+fpr.vs_depth$bfpr.est = fpr.vs_depth$fpr.est * fpr.N/fpr.S * 1e6
+fpr.vs_depth$bfpr.lcl = fpr.vs_depth$fpr.lcl * fpr.N/fpr.S * 1e6
+fpr.vs_depth$bfpr.ucl = fpr.vs_depth$fpr.ucl * fpr.N/fpr.S * 1e6
+
+
+# Plot BFPRi ~ depth.  This is averaged over the replicate samples.
+ggplot(fpr.vs_depth, aes(x = depth, y = bfpr.est, ymin = bfpr.lcl, ymax = bfpr.ucl)) + 
     geom_bar(stat = "identity") + 
-    labs(x = "Sequence depth (inclusive)", y = "False positives per Mb (approx.)", title = "False positive rate vs depth") + 
+    geom_errorbar() + 
+    labs(x = "Sequence depth (inclusive)", y = "False positives per Mb (approx.)", title = "False Positive Rate: Effect of Depth") + 
     theme_bw()
 
-ggplot(temp_nfp, aes(x = depth, y = n)) + 
-    geom_bar(stat = "identity") + 
-    labs(x = "Sequence depth (inclusive)", y = "Variant count at this depth", title = "Variant count vs depth") + 
+
+# Now create an accessory plot showing the number of variants in each
+# depth class.  This varies per sample, so work from the fpr.Ni structure.
+library(reshape2)
+fpr.Ni2 = melt(fpr.Ni, value.name = "count")
+
+ggplot(fpr.Ni2, aes(x = depth, y = count, group = sample, colour = sample)) + 
+    geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
+    labs(x = "Sequence depth (inclusive)", y = "Variant positions with this depth", title = "Variant Count vs Depth", colour = "Sample Label") + 
     theme_bw()
 
-ggplot(temp_nfp, aes(x = depth, y = nfp)) + 
-    geom_bar(stat = "identity") + 
-    labs(x = "Sequence depth (inclusive)", y = "False positive count at this depth", title = "False positive count vs depth") + 
+
+# Finally create a plot which is effectively the combination of the
+# previous two.  This is, for each sample, the number of false positive
+# variants in each depth class.
+fpr.NFPi2 = melt(fpr.NFPi, value.name = "count")
+
+ggplot(fpr.NFPi2, aes(x = depth, y = count, group = sample, colour = sample)) + 
+    geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
+    labs(x = "Sequence depth (inclusive)", y = "False positives with this depth", title = "False Positive Count: Effect of Depth") + 
     theme_bw()
-
-
-
-# false_positive_count = sum(subset(class_subsets.performance_thresholded, muttype == "None")$nfp)
-# false_positive_count_subset_size = sum(as.numeric(width(universe$analysis)))
-# false_positive_rate_per_Mb = false_positive_count / false_positive_count_subset_size * 1e6
-# 
-# ggplot(data.frame(rate_per_Mb = false_positive_rate_per_Mb), aes(x = 1, y = rate_per_Mb)) + 
-#     geom_bar(stat = "identity") + 
-#     labs(y = "False positive rate per Mb", title = "False Positive Rate") + 
-#     theme_bw()
 @
 
 

@@ -84,13 +84,16 @@ marginalizePerformance = function(perf_data, subset, vars, ...)
 }
 
 
-calcPerformanceStats = function(data, subset, vars, ..., conf_level = 0.95)
+calcPerformanceStats = function(data, subset, vars, ..., model = "bin", conf_level = 0.95)
 {
     marginalized_values = ldply(data, function(d) marginalizePerformance(d$class_subsets.performance_thresholded, subset, vars, ...))
 
     combined_stats = ddply(marginalized_values, vars, function(m) {
-        ci = replicatedBinomialCI(m$ntp, m$ntp[1] + m$nfn[1], conf_level = conf_level)
-        c(sens = ci[["median"]], sens.lci = ci[["lower"]], sens.uci = ci[["upper"]], n = m$m[1])
+        sens_stats = replicatedBinomialCI(m$ntp, m$nfn, conf_level, model = model)
+        fpr_stats = replicatedBinomialCI(m$nfp, m$n - m$nfp, conf_level, model = model)
+        names(sens_stats) = paste("sens.", names(sens_stats), sep = "")
+        names(fpr_stats) = paste("fpr.", names(fpr_stats), sep = "")
+        unlist(c(sens_stats, fpr_stats))
     })
 
     combined_stats
@@ -100,7 +103,7 @@ calcPerformanceStats = function(data, subset, vars, ..., conf_level = 0.95)
 betaBinomML = function(x, S)
 {
     # Fit a Beta-binomial distribution:
-    # x[i] ~ Binom(p[i]; S)
+    # x[i] ~ Binom(p[i]; S[i])
     # p[i] ~ Beta(a, b)
     # Returns the vector c(a, b) containing optimised values
     # for the beta parameters.
@@ -127,6 +130,12 @@ betaBinomML = function(x, S)
     # radcan(diff(sum(log((beta(x[i]+a,S-x[i]+b)*gamma(S+1))/(beta(a,b)*gamma(x[i]+1)*gamma(S-x[i]+1))),i,1,m),b,1));
     #   sum(gamma(S+1)*psi[0](S-x[i]+b)-gamma(S+1)*psi[0](S+b+a)+(psi[0](b+a)-psi[0](b))*gamma(S+1),i=1,1,m)/gamma(S+1)
 
+    # test.a = seq(-2, 5, 0.2)
+    # test.b = seq(-5, 5, 0.2)
+    # test.obj = as.matrix(sapply(test.a, function(a) sapply(test.b, function(b) objective(c(a, b), x, S))))
+    # dimnames(test.obj) = list(b = round(test.b, 2), a = round(test.a, 2))
+    # print(test.obj)
+
     # The likelihood appears well-behaved -- a uniform starting point seems to work well:
     start = c(0, 0)
 
@@ -136,21 +145,55 @@ betaBinomML = function(x, S)
 }
 
 
-replicatedBinomialCI = function(successes, trials, conf_level)
+replicatedBinomialCI = function(successes, failures, conf_level, model = c("bin", "betabin"))
 {
-    # Estimate a confidence interval for the underlying rate
-    # distribution of a beta binomial model.  Suppose m 
-    # experiments are performed, where in each experiment i,
-    # the measured variable x[i] is the number of successes 
-    # in S binomial trials.  The success rate in each experiment,
-    # r[i], is a random beta-distributed variable.  Symbolically,
-    #  x[i] ~ Binom(r[i], S)
+    # Estimate central tendency and confidence limits for the
+    # success rate of a binomial process that has been measured
+    # in multiple separate experiments.  Two models are 
+    # currently implemented: Beta-binomial, and binomial.
+
+    # The Beta-binomial supposes m experiments are performed, 
+    # where in each experiment i, the measured variable x[i] is 
+    # the number of successes in S[i] binomial trials, and the 
+    # success rate in each experiment, r[i], is a random 
+    # beta-distributed variable.  Symbolically,
+    #  x[i] ~ Binom(r[i], S[i])
     #  r[i] ~ Beta(a, b)
     # The r[i]s allow experiments to have a slightly differing
-    # success rate.  The goal is to place confidence limits on
-    # this success rate distribution, R.  We do this by ML.
+    # success rate.
 
-    fit = betaBinomML(successes, trials)
-    qbeta(c(lower = (1-conf_level)/2, median = 0.5, upper = 1-(1-conf_level)/2), shape1 = fit[1], shape2 = fit[2])
+    # The binomial model is a straight wrapper around GLM, and
+    # uses its profile functions to estimate CIs on the rate.
+
+    model = match.arg(model)
+
+    result = list(est = NA, lcl = NA, ucl = NA, conf_level = conf_level)
+
+    if (model == "betabin")
+    {
+        # Approach 1: ML on beta-binomial fit:
+        fit = betaBinomML(successes, successes + failures)
+        ci = qbeta(c(lower = (1-conf_level)/2, median = 0.5, upper = 1-(1-conf_level)/2), shape1 = fit[1], shape2 = fit[2])
+        result$est = ci[["median"]]
+        result$lcl = ci[["lower"]]
+        result$ucl = ci[["upper"]]
+    }
+    else if (model == "bin")
+    {
+        # Approach 2: GLM
+        data = cbind(successes = successes, failures = failures)
+        if (!all(data[,"successes"] + data[,"failures"] == 0))
+        {
+            data = data[data[,"successes"] + data[,"failures"] != 0,,drop=FALSE]
+            fit = glm(data ~ 1, family = binomial)
+            mean_logit = coef(fit)[["(Intercept)"]]
+            ci_logit = suppressMessages(confint(fit, parm = "(Intercept)", level = conf_level))
+            result$est = exp(mean_logit) / (1 + exp(mean_logit))
+            result$lcl = exp(ci_logit[[1]]) / (1 + exp(ci_logit[[1]]))
+            result$ucl = exp(ci_logit[[2]]) / (1 + exp(ci_logit[[2]]))
+        }
+    }
+
+    result
 }
 
