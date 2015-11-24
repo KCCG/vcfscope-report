@@ -38,12 +38,6 @@ main() {
   export PATH="$PWD/bin:$PATH"
   export RHOME=${HOME} # This is needed to make RScript work, since it was compiled in a different dir.
 
-  # Install RStan for the MCMC CI estimation
-  dx get "${DX_ASSETS_ID}:/assets/StanHeaders_2.8.0.tar.gz"
-  dx get "${DX_ASSETS_ID}:/assets/rstan_2.8.1.tar.gz"
-  R CMD INSTALL StanHeaders_2.8.0.tar.gz
-  R CMD INSTALL rstan_2.8.1.tar.gz
-
   # Run report
   mkdir -p ~/out/report/
   ./performance_report.sh input_files.txt ~/out/report/performance_report.pdf
