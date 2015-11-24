@@ -1,7 +1,7 @@
 {
     "name": "kccg-performance-report",
     "title": "Create a Variant Call Performance Report (KCCG)",
-    "summary": "Given one or more performance metric RDS files from kccg-performance-measure, create a PDF performance report.",
+    "summary": "Create a WGS performance report given one or more performance RDS files from kccg-performance-measure",
     "dxapi": "1.0.0",
     "version": "auto-updated-by-bamboo",
     "resources": "project-Bk6V4v00jvx088XzjQf5F9bV",

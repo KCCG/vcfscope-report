@@ -32,6 +32,7 @@
 
 % LIBRARIES AND HELPER FUNCTIONS
 %--------------------------------------------------------------------
+
 <<load-libs, cache=FALSE, echo=FALSE>>=
 suppressMessages(library(GenomicRanges))
 suppressMessages(library(ggplot2))
@@ -42,16 +43,22 @@ suppressMessages(source("report_functions.R"))
 @
 
 
+
+
 % ERROR BAR GLOBAL SETTINGS
 %--------------------------------------------------------------------
+
 <<settings, cache=FALSE, echo=FALSE>>=
 CI_MODEL = "betabin"
 CI_LEVEL = 0.95
 @
 
 
+
+
 % LOAD PRECOMPUTED RESULTS
 %--------------------------------------------------------------------
+
 <<load-results, cache=FALSE, echo=FALSE>>=
 env = Sys.getenv(names = TRUE)
 rds_list_path = env["PARAM_INPUT_RDS_PATH"]
@@ -87,8 +94,10 @@ shared_hashes = data[[1]]$hashes[c("region.subset.path", "path.gold.variants.ori
 @
 
 
+
 % KNITR SETUP
 %--------------------------------------------------------------------
+
 <<setup, cache=FALSE, echo=FALSE>>=
 library(knitr)
 options(
@@ -106,8 +115,10 @@ options(warn = 1)
 @
 
 
+
 % SUPPLIED REGION BED DETAILS
 % --------------------------------------------------------------------
+
 <<region-details, echo=FALSE, cache=FALSE>>=
 temp.region_md5 = "NA"
 temp.region_label = "NO"
@@ -117,6 +128,7 @@ if (shared_params$region.subset)
     temp.region_md5 = data[[1]]$hashes$region.subset.path
 }
 @
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -138,6 +150,10 @@ if (shared_params$region.subset)
 \end{titlepage}
 
 
+
+% SUMMARY
+% --------------------------------------------------------------------
+
 \section{Summary}
 Number of samples: \texttt{\Sexpr{length(data)}} \\
 Analysis restricted to regions? \Sexpr{temp.region_label} \\
@@ -145,6 +161,10 @@ Report version: \texttt{\Sexpr{shared_params$version$script}} \\
 Report time: \texttt{\Sexpr{date()}} \\
 Call criterion: \Sexpr{shared_params$criterion_latex} \\
 
+
+
+% SAMPLE INFORMATION
+% --------------------------------------------------------------------
 
 \section{Samples}
 <<sample-table,results='asis'>>=
@@ -157,6 +177,10 @@ temp.sample_table = xtable(data.frame(
 print(temp.sample_table, sanitize.text.function = function(x) x, include.rownames = FALSE)
 @
 
+
+
+% TARGET REGION INFORMATION
+% --------------------------------------------------------------------
 
 \section{Region analysed}
 <<subset-calcs>>=
@@ -175,9 +199,40 @@ plotGenomeBreakdown(f_targ_of_wg = temp.size_subset / temp.size_genome, f_gold_o
 @
 
 
+
+% VARIANT FREQUENCY OVER DEPTH PRECALCULATION
+% --------------------------------------------------------------------
+
+<<depth-variant-distr>>=
+# Calculate the frequency of variants at each depth in each sample,
+# for either all variants (variants_vs_depth), or substitutions only 
+# (substs_vs_depth)
+library(reshape2)
+
+variants_vs_depth = sapply(data, function(x) dlply(x$class_subsets.performance_thresholded, .(depth), function(y) sum(y$ntp + y$nfn)))
+names(dimnames(variants_vs_depth)) = c("depth", "sample")
+variants_vs_depth = matrix(unlist(variants_vs_depth), ncol = length(data), dimnames = dimnames(variants_vs_depth))
+colnames(variants_vs_depth) = data.labels[colnames(variants_vs_depth)]
+variants_vs_depth.melted = melt(variants_vs_depth, value.name = "count")
+
+substs_vs_depth = laply(data, function(x) daply(subset(x$class_subsets.performance_thresholded, muttype == "Subst" & zyg %in% c("RA", "AA")), .(depth, zyg), function(y) sum(y$ntp + y$nfn)))
+names(dimnames(substs_vs_depth)) = c("sample", "depth", "zyg")
+dimnames(substs_vs_depth)$sample = data.labels[names(data)]
+substs_vs_depth = substs_vs_depth[,,c("RA", "AA")]
+substs_vs_depth.melted = melt(substs_vs_depth, value.name = "count")
+@
+
+
+
+
 \section{Performance}
 \subsection{Sensitivity}
-<<sensitivity-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+\subsubsection{Single nucleotide variants}
+
+% SENSITIVITY: SNVs
+% --------------------------------------------------------------------
+
+<<sensitivity-plots-snv,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
 ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = zyg, y = sens.est, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
     geom_errorbar(aes(ymin = sens.lcl, ymax = sens.ucl), width = 0.2) + 
@@ -197,15 +252,20 @@ ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "A
     labs(x = "Sequence depth (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "SNV Detection vs Depth") + 
     theme_bw() + ylim(0, 1)
 
-ggplot(
-    marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth)), 
-    aes(x = depth, y = ntp + nfn, group = zyg, colour = zyg)) + 
-    geom_line() + 
-    geom_point(size = 2, shape = 21, fill = "white") + 
-    labs(x = "Sequence depth (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "SNV Counts in Gold Standard") + 
+
+ggplot(substs_vs_depth.melted, aes(x = depth, y = count, lty = sample, shape = sample, colour = zyg, group = sample:zyg)) + 
+    geom_line() + geom_point(size = 2, fill = "white") + 
+    labs(x = "Sequence depth (inclusive)", y = "Variants with this depth", title = "SNV Counts vs Depth", colour = "Zygosity", shape = "Sample", lty = "Sample Label") + 
     theme_bw()
+@
 
 
+
+% SENSITIVITY: INSERTIONS
+% --------------------------------------------------------------------
+
+\subsubsection{Insertions}
+<<sensitivity-plots-ins,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
 ggplot(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
@@ -220,8 +280,15 @@ ggplot(
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases inserted (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "Insertion Counts in Gold Standard") + 
     theme_bw()
+@
 
 
+
+% SENSITIVITY: DELETIONS
+% --------------------------------------------------------------------
+
+\subsubsection{Deletions}
+<<sensitivity-plots-del,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
 ggplot(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
@@ -237,6 +304,10 @@ ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, q
 @
 
 
+
+% FALSE POSITIVE RATE
+% --------------------------------------------------------------------
+
 \subsection{False Positive Rate}
 <<false-positive-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
 # FPR here is defined as number of FP calls per megabase of sequence within
@@ -248,7 +319,7 @@ ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, q
 # For now, get around this limitation by approximating the denominator.  
 # Do this by assuming that variants are evenly spread throughout the 
 # genome, irrespective of the value of subsetting covariates.  Then, the 
-# fraction of variants in a subset (relative to all variants) is 
+# expected fraction of variants in a subset (relative to all variants) is 
 # proportional to the number of bases in the subset (relative to the 
 # number of bases in all subsets).
 
@@ -299,14 +370,12 @@ names(dimnames(fpr.NFPi)) = c("depth", "sample")
 fpr.NFPi = matrix(unlist(fpr.NFPi), ncol = length(data), dimnames = dimnames(fpr.NFPi))
 colnames(fpr.NFPi) = data.labels[colnames(fpr.NFPi)]
 
-fpr.Ni = sapply(data, function(x) dlply(x$class_subsets.performance_thresholded, .(depth), function(y) sum(y$ntp + y$nfn)))
-names(dimnames(fpr.Ni)) = c("depth", "sample")
-fpr.Ni = matrix(unlist(fpr.Ni), ncol = length(data), dimnames = dimnames(fpr.Ni))
-colnames(fpr.Ni) = data.labels[colnames(fpr.Ni)]
+# Ni has already been calculated, as variants_vs_depth
 
-fpr.N = colSums(fpr.Ni)
+fpr.N = colSums(variants_vs_depth)
 stopifnot(length(unique(fpr.N)) == 1)
 fpr.N = fpr.N[[1]]
+
 
 # Use VFPRi estimates and bounds, and the scaling factors above, to
 # estimate BFPRi and bounds.
@@ -325,11 +394,8 @@ ggplot(fpr.vs_depth, aes(x = depth, y = bfpr.est, ymin = bfpr.lcl, ymax = bfpr.u
 
 
 # Now create an accessory plot showing the number of variants in each
-# depth class.  This varies per sample, so work from the fpr.Ni structure.
-library(reshape2)
-fpr.Ni2 = melt(fpr.Ni, value.name = "count")
-
-ggplot(fpr.Ni2, aes(x = depth, y = count, group = sample, colour = sample)) + 
+# depth class.  This varies per sample, so work from the variants_vs_depth structure.
+ggplot(variants_vs_depth.melted, aes(x = depth, y = count, group = sample, colour = sample)) + 
     geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Sequence depth (inclusive)", y = "Variant positions with this depth", title = "Variant Count vs Depth", colour = "Sample Label") + 
     theme_bw()
@@ -338,9 +404,9 @@ ggplot(fpr.Ni2, aes(x = depth, y = count, group = sample, colour = sample)) +
 # Finally create a plot which is effectively the combination of the
 # previous two.  This is, for each sample, the number of false positive
 # variants in each depth class.
-fpr.NFPi2 = melt(fpr.NFPi, value.name = "count")
+fpr.NFPi_melted = melt(fpr.NFPi, value.name = "count")
 
-ggplot(fpr.NFPi2, aes(x = depth, y = count, group = sample, colour = sample)) + 
+ggplot(fpr.NFPi_melted, aes(x = depth, y = count, group = sample, colour = sample)) + 
     geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Sequence depth (inclusive)", y = "False positives with this depth", title = "False Positive Count: Effect of Depth") + 
     theme_bw()
@@ -350,12 +416,13 @@ ggplot(fpr.NFPi2, aes(x = depth, y = count, group = sample, colour = sample)) +
 
 % DATA AND SOFTWARE VERSIONS
 %--------------------------------------------------------------------
+
 \section{Versions}
 \begin{itemize}
 \item Software: \begin{itemize}
 	\item Performance script: \texttt{\Sexpr{texquote(shared_params$version$script)}}
 	\item R: \texttt{\Sexpr{texquote(R.version$version.string)}} (\texttt{\Sexpr{texquote(R.version$platform)}})
-	\item Genome: \texttt{\Sexpr{texquote(shared_params$genome)}} (\texttt{\Sexpr{packageVersion(shared_params$genome)}})
+	\item Genome: \texttt{\Sexpr{texquote(shared_params$genome)}} (\texttt{\Sexpr{shared_params$genome_version}})
 	\item Java: \texttt{\Sexpr{texquote(shared_params$version$java)}}
 	\item RTG core: \texttt{\Sexpr{texquote(shared_params$version$rtg)}}
 	\item Bedtools: \texttt{\Sexpr{texquote(shared_params$version$bedtools)}}

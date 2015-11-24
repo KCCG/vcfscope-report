@@ -28,11 +28,6 @@ main() {
     DX_ASSETS_ID="$DX_PROJECT_CONTEXT_ID"
   fi
 
-  # Stream and unpack assets bundle
-  mkdir ~/resources
-  cd ~/resources
-  dx cat "${DX_ASSETS_ID}:/assets/kccg_performance_reporter_resources_bundle-2.0.tar" | tar xf -
-
   # Setup R
   cd ~
   # This R is Aaron's R-3.2.0 with pre-installed packages, with the following 
@@ -43,11 +38,16 @@ main() {
   export PATH="$PWD/bin:$PATH"
   export RHOME=${HOME} # This is needed to make RScript work, since it was compiled in a different dir.
 
+  # Install RStan for the MCMC CI estimation
+  dx get "${DX_ASSETS_ID}:/assets/StanHeaders_2.8.0.tar.gz"
+  dx get "${DX_ASSETS_ID}:/assets/rstan_2.8.1.tar.gz"
+  R CMD INSTALL StanHeaders_2.8.0.tar.gz
+  R CMD INSTALL rstan_2.8.1.tar.gz
+
   # Run report
   mkdir -p ~/out/report/
   ./performance_report.sh input_files.txt ~/out/report/performance_report.pdf
 
   # upload results
   dx-upload-all-outputs
-  propagate-user-meta vcfgz report
 }

@@ -27,14 +27,12 @@ fi
 
 # Software & Resources
 if [ ${IS_DNANEXUS} -eq 1 ]; then
-  PATH_RESOURCES_HEAD="/home/dnanexus/resources"
   PATH_SCRATCH_DEFAULT="/tmp"
 
   RSCRIPT="/home/dnanexus/bin/Rscript"
   R="/home/dnanexus/bin/R"
 else
   # Wolfpack settings (marpin only for now)
-  PATH_RESOURCES_HEAD="/directflow/ClinicalGenomicsPipeline/projects/performance-reporter/kccg_performance_reporter_resources_bundle-2.0"
   PATH_SCRATCH_DEFAULT="/directflow/ClinicalGenomicsPipeline/tmp"
 
   RSCRIPT="/home/marpin/bin/Rscript"
@@ -84,11 +82,6 @@ PARAM_OUTPUT_PDF_PATH=$(readlink -f $2)
 #####################################################################
 # PARAMETER CHECKING
 #####################################################################
-
-if [ ! -d "${PATH_RESOURCES_HEAD}" ]; then
-  message "Error: Resources path ${PATH_RESOURCES_HEAD} not found."
-  exit 2
-fi
 
 if [ ! -e ${PARAM_INPUT_RDS_PATH} ]; then
 	message "Error: Input file ${PARAM_INPUT_RDS_PATH} not found."
