@@ -120,8 +120,7 @@ fi
 # #####################################################################
 message "Generating report..."
 
-cp ${PARAM_SCRIPT_PATH}/report.Rnw ${PARAM_SCRATCH}
-cp ${PARAM_SCRIPT_PATH}/report_functions.R ${PARAM_SCRATCH}
+cp ${PARAM_SCRIPT_PATH}/report.Rnw ${PARAM_SCRIPT_PATH}/report_functions.R ${PARAM_SCRIPT_PATH}/logit.stan ${PARAM_SCRATCH}
 cd ${PARAM_SCRATCH}
 
 ${RSCRIPT} --vanilla -e "library(knitr); knit('report.Rnw', output = 'report.tex')"

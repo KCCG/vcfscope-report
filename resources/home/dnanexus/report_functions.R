@@ -28,6 +28,13 @@ relabelZyg = function(data)
 }
 
 
+dropSizeZero = function(data)
+{
+    data = data[data$mutsize != "0",]
+    data
+}
+
+
 plotGenomeBreakdown = function(f_targ_of_wg, f_gold_of_targ,
     B = 0.3, D = 0.06, E = 0.03, 
     mar.left = 0.0, mar.right = 0.0, mar.top = 0.0, mar.bottom = 0.2,
@@ -224,9 +231,9 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         #   PSS is less obvious.  This could be tuned.
 
         data = list(M = length(successes), PSS = 0.5, alpha = 9, beta = 0.9, n = successes, m = failures)
-        fit = stan(file = "logit.stan", data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10)
+        stan.result = stan(file = "logit.stan", data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10)
         mu_samples = extract(stan.result, "mu")[[1]]
-        mu_ci = HPDinterval(mcmc(test), prob = conf_level)
+        mu_ci = HPDinterval(mcmc(as.vector(mu_samples)), prob = conf_level)
         result$est = plogis(median(mu_samples))
         result$lcl = plogis(mu_ci[[1]])
         result$ucl = plogis(mu_ci[[2]])
