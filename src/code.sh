@@ -38,9 +38,16 @@ main() {
   export PATH="$PWD/bin:$PATH"
   export RHOME=${HOME} # This is needed to make RScript work, since it was compiled in a different dir.
 
+  dx download "${DX_ASSETS_ID}:/assets/StanHeaders_2.8.0.tar.gz"
+  dx download "${DX_ASSETS_ID}:/assets/rstan_2.8.1.tar.gz"
+  dx download "${DX_ASSETS_ID}:/assets/coda_0.18-1.tar.gz"
+  R CMD INSTALL StanHeaders_2.8.0.tar.gz
+  R CMD INSTALL rstan_2.8.1.tar.gz
+  R CMD INSTALL coda_0.18-1.tar.gz
+
   # Run report
-  mkdir -p ~/out/report/
-  ./performance_report.sh input_files.txt ~/out/report/performance_report.pdf
+  mkdir -p ~/out/pdf/ ~/out/rds/
+  ./performance_report.sh input_files.txt ~/out/pdf/performance_report.pdf ~/out/rds/performance_report.rds
 
   # upload results
   dx-upload-all-outputs

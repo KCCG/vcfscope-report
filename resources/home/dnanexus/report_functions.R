@@ -2,6 +2,12 @@ library(ggplot2)
 library(scales)
 library(plyr)
 
+library(parallel)
+library(rstan)
+library(coda)       # For HPDinterval
+rstan_options(auto_write = TRUE)
+options(mc.cores = parallel::detectCores())
+
 
 texquote = function(str) gsub("_", "\\\\_", sub("\\s+$", "", str))
 
@@ -12,6 +18,13 @@ formatC2 = function(x, ...)
         return("")
     else
         return(formatC(x, ...))
+}
+
+
+relabelZyg = function(data)
+{
+    data$zyg = ordered(c("RR" = "HomRef", "RA" = "Het", "AA" = "HomAlt", "AB" = "HetAlt")[as.character(data$zyg)], levels = c("Hom", "Het", "HomAlt", "HetAlt"))
+    data
 }
 
 
@@ -84,7 +97,7 @@ marginalizePerformance = function(perf_data, subset, vars, ...)
 }
 
 
-calcPerformanceStats = function(data, subset, vars, ..., model = "bin", conf_level = 0.95)
+calcPerformanceStats = function(data, subset, vars, ..., model = "betabin", conf_level = 0.95)
 {
     marginalized_values = ldply(data, function(d) marginalizePerformance(d$class_subsets.performance_thresholded, subset, vars, ...))
 
@@ -162,7 +175,7 @@ betaBinomML = function(x, S)
 }
 
 
-replicatedBinomialCI = function(successes, failures, conf_level, model = c("betabin"))
+replicatedBinomialCI = function(successes, failures, conf_level, model = c("betabin", "stan"))
 {
     # Estimate central tendency and confidence limits for the
     # success rate of a binomial process that has been measured
@@ -196,6 +209,23 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         result$est = ci[["median"]]
         result$lcl = ci[["lower"]]
         result$ucl = ci[["upper"]]
+    }
+    else if (model == "stan")
+    {
+        # Prior:
+        #   PSS: Prior 'sample size' / strength
+        #   alpha, beta: parameters of prior gamma distribution.  Derive from mean, sd of x as:
+        #   alpha = (mean/sd)^2     beta = mean/sd^2
+        #   Reasonable starting values are mean = 0.1, sd = 1 => alpha = 0.01, beta = 0.1
+        #   PSS is less obvious.  This could be tuned.
+
+        data = list(M = length(successes), PSS = 0.5, alpha = 0.01, beta = 0.1, n = successes, m = failures)
+        fit = stan(file = "logit.stan", data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10)
+        mu_samples = extract(stan.result, "mu")[[1]]
+        mu_ci = HPDinterval(mcmc(test), prob = conf_level)
+        result$est = plogis(median(mu_samples))
+        result$lcl = plogis(mu_ci[[1]])
+        result$ucl = plogis(mu_ci[[2]])
     }
 
     result

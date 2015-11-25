@@ -21,11 +21,20 @@
     "outputSpec": [
         {
             "patterns": [
-                "*.perf.pdf"
+                "*.pdf"
             ],
             "label": "Performance report PDF",
             "help": "The performance report, in PDF format.",
-            "name": "report",
+            "name": "pdf",
+            "class": "file"
+        },
+        {
+            "patterns": [
+                "*.rds"
+            ],
+            "label": "Performance report RDS",
+            "help": "Performance report summary data, in RDS format.",
+            "name": "rds",
             "class": "file"
         }
     ],
@@ -35,7 +44,8 @@
             { "name": "texlive" },
             { "name": "latex-xcolor" },
             { "name": "texlive-latex-extra" },
-            { "name": "ghostscript" }
+            { "name": "ghostscript" },
+            { "name": "liblapack-dev" }
         ],
         "systemRequirements": {
             "main": {

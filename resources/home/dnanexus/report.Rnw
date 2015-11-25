@@ -168,13 +168,12 @@ Call criterion: \Sexpr{shared_params$criterion_latex} \\
 
 \section{Samples}
 <<sample-table,results='asis'>>=
-temp.sample_table = xtable(data.frame(
-    "Label" = sapply(data, function(x) texquote(x$label)),
-    "Name" = sapply(data, function(x) texquote(x$params$sample.id)),
-    "VCF" = paste("\\texttt{", sapply(data, function(x) texquote(gsub(".*/", "", x$params$path.test.orig))), "}"),
-    "MD5" = paste("\\texttt{", sapply(data, function(x) gsub("\\s+$", "", x$hashes$path.test.orig)), "}")),
-    align = "lllll")
-print(temp.sample_table, sanitize.text.function = function(x) x, include.rownames = FALSE)
+temp.sample_table = data.frame(
+    "Report Label" = sapply(data, function(x) texquote(x$label)),
+    "VCF ID" = sapply(data, function(x) texquote(x$params$sample.id)),
+    "VCF File" = paste("\\texttt{", sapply(data, function(x) texquote(gsub(".*/", "", x$params$path.test.orig))), "}"))
+colnames(temp.sample_table) = gsub("\\.", " ", colnames(temp.sample_table))
+print(xtable(temp.sample_table, align = "llll"), sanitize.text.function = function(x) x, include.rownames = FALSE)
 @
 
 
@@ -191,7 +190,7 @@ temp.size_gold = sum(as.numeric(width(universe$analysis)))      # | GIAB ^ BED ^
 
 
 \begin{itemize}
-Of the \Sexpr{formatC2(temp.size_genome, digits=0, format="f", big.mark=",")} bases in the genome, \Sexpr{formatC2(temp.size_subset, digits=0, format="f", big.mark=",")} (\Sexpr{round(temp.size_subset / temp.size_genome * 100, 2)}\%) were in the supplied report target regions.  Of the target bases, \Sexpr{formatC2(temp.size_gold, digits=0, format="f", big.mark=",")} (\Sexpr{round(temp.size_gold / temp.size_subset * 100, 2)}\%) had gold-standard genotype available, and were used in this report.
+Of the \Sexpr{formatC2(temp.size_genome, digits=0, format="f", big.mark=",")} bases in the genome, \Sexpr{formatC2(temp.size_subset, digits=0, format="f", big.mark=",")} (\Sexpr{round(temp.size_subset / temp.size_genome * 100, 2)}\%) were in the supplied report target regions.  Of these target bases, \Sexpr{formatC2(temp.size_gold, digits=0, format="f", big.mark=",")} (\Sexpr{round(temp.size_gold / temp.size_subset * 100, 2)}\%) had gold-standard genotype available, and were used to generate this report.
 \end{itemize}
 
 <<subset-plots,fig.height=4,fig.width=6.4,out.width='4in'>>=
@@ -232,20 +231,29 @@ substs_vs_depth.melted = melt(substs_vs_depth, value.name = "count")
 % SENSITIVITY: SNVs
 % --------------------------------------------------------------------
 
-<<sensitivity-plots-snv,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
-ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = zyg, y = sens.est, fill = zyg)) + 
+<<sensitivity-snv-marginal-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+ggplot(relabelZyg(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), model = CI_MODEL, conf_level = CI_LEVEL)), 
+    aes(x = zyg, y = sens.est, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
     geom_errorbar(aes(ymin = sens.lcl, ymax = sens.ucl), width = 0.2) + 
     labs(x = "", y = "Sensitivity", fill = "Zygosity", title = "SNV Detection") + 
-    theme_bw() + ylim(0, 1)
+    theme_bw() + coord_cartesian(ylim = c(0.9, 1.005))
 
-ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg)), aes(x = zyg, y = n, fill = zyg)) + 
+ggplot(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg))),
+    aes(x = zyg, y = n, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
     labs(x = "", y = "Number of mutations", fill = "Zygosity", title = "SNV Counts in Gold Standard") + 
-    theme_bw()
+    theme_bw() + 
+    scale_x_discrete(labels = c("RA" = "Het", "AA" = "HomAlt"))
+@
+
+<<sensitivity-snv-marginal-table,results='asis'>>=
+@
 
 
-ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = depth, y = sens.est, group = zyg, colour = zyg)) + 
+<<sensitivity-snv-bydepth-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+ggplot(relabelZyg(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), model = CI_MODEL, conf_level = CI_LEVEL)),
+    aes(x = depth, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
@@ -253,9 +261,10 @@ ggplot(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "A
     theme_bw() + ylim(0, 1)
 
 
-ggplot(substs_vs_depth.melted, aes(x = depth, y = count, lty = sample, shape = sample, colour = zyg, group = sample:zyg)) + 
+ggplot(relabelZyg(substs_vs_depth.melted), 
+    aes(x = depth, y = count, lty = sample, shape = sample, colour = zyg, group = sample:zyg)) + 
     geom_line() + geom_point(size = 2, fill = "white") + 
-    labs(x = "Sequence depth (inclusive)", y = "Variants with this depth", title = "SNV Counts vs Depth", colour = "Zygosity", shape = "Sample", lty = "Sample Label") + 
+    labs(x = "Sequence depth (inclusive)", y = "Variants with this depth", title = "SNV Counts vs Depth", colour = "Zygosity", shape = "Sample Label", lty = "Sample Label") + 
     theme_bw()
 @
 
@@ -265,8 +274,9 @@ ggplot(substs_vs_depth.melted, aes(x = depth, y = count, lty = sample, shape = s
 % --------------------------------------------------------------------
 
 \subsubsection{Insertions}
-<<sensitivity-plots-ins,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
-ggplot(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
+<<sensitivity-ins-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+ggplot(relabelZyg(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL)), 
+    aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
@@ -274,7 +284,7 @@ ggplot(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA"
     theme_bw() + ylim(0, 1)
 
 ggplot(
-    marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), 
+    relabelZyg(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize))),
     aes(x = mutsize, y = ntp + nfn, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_point(size = 2, shape = 21, fill = "white") + 
@@ -288,15 +298,17 @@ ggplot(
 % --------------------------------------------------------------------
 
 \subsubsection{Deletions}
-<<sensitivity-plots-del,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
-ggplot(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL), aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
+<<sensitivity-del-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+ggplot(relabelZyg(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL)), 
+    aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases deleted (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Deletion Detection Performance") + 
     theme_bw() + ylim(0, 1)
 
-ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)), aes(x = mutsize, y = ntp + nfn, group = zyg, colour = zyg)) + 
+ggplot(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize))), 
+    aes(x = mutsize, y = ntp + nfn, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases deleted (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "Deletion Counts in Gold Standard") + 
@@ -309,7 +321,7 @@ ggplot(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, q
 % --------------------------------------------------------------------
 
 \subsection{False Positive Rate}
-<<false-positive-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<falsepositive-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
 # FPR here is defined as number of FP calls per megabase of sequence within
 # the subset under consideration.  Unfortunately, this denominator (the
 # megabases of sequence in the subset) is not exactly known, as it cannot
@@ -422,7 +434,7 @@ ggplot(fpr.NFPi_melted, aes(x = depth, y = count, group = sample, colour = sampl
 \item Software: \begin{itemize}
 	\item Performance script: \texttt{\Sexpr{texquote(shared_params$version$script)}}
 	\item R: \texttt{\Sexpr{texquote(R.version$version.string)}} (\texttt{\Sexpr{texquote(R.version$platform)}})
-	\item Genome: \texttt{\Sexpr{texquote(shared_params$genome)}} (\texttt{\Sexpr{shared_params$genome_version}})
+	\item Genome: \texttt{\Sexpr{texquote(shared_params$genome)}} (\texttt{\Sexpr{shared_params$version$genome}})
 	\item Java: \texttt{\Sexpr{texquote(shared_params$version$java)}}
 	\item RTG core: \texttt{\Sexpr{texquote(shared_params$version$rtg)}}
 	\item Bedtools: \texttt{\Sexpr{texquote(shared_params$version$bedtools)}}
@@ -440,4 +452,18 @@ ggplot(fpr.NFPi_melted, aes(x = depth, y = count, group = sample, colour = sampl
     \end{itemize}
 \end{itemize}
 
+
+% SAVE REPORT DATA
+%--------------------------------------------------------------------
+<<save>>=
+saveRDS(data, file = "report.rds")
+@
+
 \end{document}
+
+
+
+
+% TODO
+% VCF MD5s
+% "MD5" = paste("\\texttt{", sapply(data, function(x) gsub("\\s+$", "", x$hashes$path.test.orig)), "}")
