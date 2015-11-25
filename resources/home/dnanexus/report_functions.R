@@ -214,12 +214,16 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
     {
         # Prior:
         #   PSS: Prior 'sample size' / strength
-        #   alpha, beta: parameters of prior gamma distribution.  Derive from mean, sd of x as:
-        #   alpha = (mean/sd)^2     beta = mean/sd^2
-        #   Reasonable starting values are mean = 0.1, sd = 1 => alpha = 0.01, beta = 0.1
+        #   alpha, beta: parameters of gamma distribution prior for the precision tau.
+        #   
+        #   Derive alpha, beta from mean, sd of tau as:
+        #     alpha = (mean/sd)^2     beta = mean/sd^2
+        #   Reasonable starting values are mean = 10, sd = 10/3 => alpha = 9, beta = 0.9;
+        #   this corresponds to a performance sd of 0.1, which is a conservative setting
+        #   given the behaviour of the data so far.
         #   PSS is less obvious.  This could be tuned.
 
-        data = list(M = length(successes), PSS = 0.5, alpha = 0.01, beta = 0.1, n = successes, m = failures)
+        data = list(M = length(successes), PSS = 0.5, alpha = 9, beta = 0.9, n = successes, m = failures)
         fit = stan(file = "logit.stan", data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10)
         mu_samples = extract(stan.result, "mu")[[1]]
         mu_ci = HPDinterval(mcmc(test), prob = conf_level)
