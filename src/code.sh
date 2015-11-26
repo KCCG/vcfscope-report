@@ -9,15 +9,6 @@ set -e -x -o pipefail
 
 
 main() {
-  # Fetch inputs
-  dx-download-all-inputs --parallel
-
-  # Create a list of all input files
-  cat /dev/null > input_files.txt
-  for path in ~/in/rdslist/*/*; do
-    echo $path >> input_files.txt
-  done
-
   # Locate the assets bundle, the location of which varies, depending on whether
   # this is an app or an applet.
   if [[ "$DX_RESOURCES_ID" != "" ]]; then
@@ -38,12 +29,20 @@ main() {
   export PATH="$PWD/bin:$PATH"
   export RHOME=${HOME} # This is needed to make RScript work, since it was compiled in a different dir.
 
-  dx download "${DX_ASSETS_ID}:/assets/StanHeaders_2.8.0.tar.gz"
-  dx download "${DX_ASSETS_ID}:/assets/rstan_2.8.1.tar.gz"
-  dx download "${DX_ASSETS_ID}:/assets/coda_0.18-1.tar.gz"
-  R CMD INSTALL StanHeaders_2.8.0.tar.gz
-  R CMD INSTALL rstan_2.8.1.tar.gz
-  R CMD INSTALL coda_0.18-1.tar.gz
+  RPACKAGES=(BH_1.58.0-1.tar.gz RcppEigen_0.3.2.5.1.tar.gz gridExtra_2.0.0.tar.gz StanHeaders_2.8.0.tar.gz rstan_2.8.1.tar.gz coda_0.18-1.tar.gz)
+  for RPACKAGE in ${RPACKAGES[*]}; do
+    dx download "${DX_ASSETS_ID}:/assets/${RPACKAGE}"
+    R CMD INSTALL ${RPACKAGE}
+  done
+
+  # Fetch inputs
+  dx-download-all-inputs --parallel
+
+  # Create a list of all input files
+  cat /dev/null > input_files.txt
+  for path in ~/in/rdslist/*/*; do
+    echo $path >> input_files.txt
+  done
 
   # Run report
   mkdir -p ~/out/pdf/ ~/out/rds/

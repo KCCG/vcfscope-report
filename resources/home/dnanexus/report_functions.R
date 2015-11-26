@@ -2,11 +2,11 @@ library(ggplot2)
 library(scales)
 library(plyr)
 
-library(parallel)
-library(rstan)
-library(coda)       # For HPDinterval
-rstan_options(auto_write = TRUE)
-options(mc.cores = parallel::detectCores())
+suppressMessages(library(rstan))
+suppressMessages(library(coda))       # For HPDinterval
+STAN_LOGIT = stan_model("logit.stan")
+
+set.seed(as.double(Sys.time()))
 
 
 texquote = function(str) gsub("_", "\\\\_", sub("\\s+$", "", str))
@@ -31,6 +31,13 @@ relabelZyg = function(data)
 dropSizeZero = function(data)
 {
     data = data[data$mutsize != "0",]
+    data
+}
+
+
+dropDepthUnknown = function(data)
+{
+    data = data[data$depth != "Unknown",]
     data
 }
 
@@ -230,8 +237,32 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         #   given the behaviour of the data so far.
         #   PSS is less obvious.  This could be tuned.
 
+        stan_init_func = function(chain_id) { 
+            old_seed = .Random.seed
+            set.seed(old_seed + chain_id)
+            init_r = successes / (successes + failures)
+            init_r[is.na(init_r)] = 0.5
+            init_r = init_r * 0.99 + 0.005
+            init_x = qlogis(init_r)
+            init_mu = mean(init_x)
+            init_x = init_x + rnorm(length(init_x), 0, 0.1)
+            init_tau = rnorm(1, 10, 3)
+            set.seed(old_seed)
+            list(x = init_x, mu = init_mu, tau = init_tau)
+        }
+
         data = list(M = length(successes), PSS = 0.5, alpha = 9, beta = 0.9, n = successes, m = failures)
-        stan.result = stan(file = "logit.stan", data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10)
+
+        # Original chatty code, always reported timing info.  See the silencing hack below.
+        # stan.result = sampling(STAN_LOGIT, data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10, init = stan_init_func, refresh = 0)
+        
+        # Hack to get around Stan being unavoidably chatty.  Not ideal as we lose error 
+        # messages too, but can't be helped without putting the stan calcs in a separate 
+        # script:
+        sink("/dev/null")
+        stan.result = sampling(STAN_LOGIT, data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10, init = stan_init_func)
+        sink()
+
         mu_samples = extract(stan.result, "mu")[[1]]
         mu_ci = HPDinterval(mcmc(as.vector(mu_samples)), prob = conf_level)
         result$est = plogis(median(mu_samples))

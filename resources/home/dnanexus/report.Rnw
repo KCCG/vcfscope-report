@@ -39,7 +39,7 @@ suppressMessages(library(ggplot2))
 suppressMessages(library(plyr))
 suppressMessages(library(xtable))
 
-suppressMessages(source("report_functions.R"))
+source("report_functions.R")
 @
 
 
@@ -232,7 +232,7 @@ substs_vs_depth.melted = melt(substs_vs_depth, value.name = "count")
 % SENSITIVITY: SNVs
 % --------------------------------------------------------------------
 
-<<sensitivity-snv-marginal-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<sensitivity-snv-marginal-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold',echo=FALSE,message=FALSE,error=FALSE,warning=FALSE>>=
 ggplot(relabelZyg(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), model = CI_MODEL, conf_level = CI_LEVEL)), 
     aes(x = zyg, y = sens.est, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
@@ -253,7 +253,7 @@ ggplot(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.performance_thr
 
 
 <<sensitivity-snv-bydepth-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
-ggplot(relabelZyg(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), model = CI_MODEL, conf_level = CI_LEVEL)),
+ggplot(dropDepthUnknown(relabelZyg(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), model = CI_MODEL, conf_level = CI_LEVEL))),
     aes(x = depth, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
@@ -262,7 +262,7 @@ ggplot(relabelZyg(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in%
     theme_bw() + ylim(0, 1)
 
 
-ggplot(relabelZyg(substs_vs_depth.melted), 
+ggplot(dropDepthUnknown(relabelZyg(substs_vs_depth.melted)), 
     aes(x = depth, y = count, lty = sample, shape = sample, colour = zyg, group = sample:zyg)) + 
     geom_line() + geom_point(size = 2, fill = "white") + 
     labs(x = "Sequence depth (inclusive)", y = "Variants with this depth", title = "SNV Counts vs Depth", colour = "Zygosity", shape = "Sample Label", lty = "Sample Label") + 
@@ -399,7 +399,7 @@ fpr.vs_depth$bfpr.ucl = fpr.vs_depth$fpr.ucl * fpr.N/fpr.S * 1e6
 
 
 # Plot BFPRi ~ depth.  This is averaged over the replicate samples.
-ggplot(fpr.vs_depth, aes(x = depth, y = bfpr.est, ymin = bfpr.lcl, ymax = bfpr.ucl)) + 
+ggplot(dropDepthUnknown(fpr.vs_depth), aes(x = depth, y = bfpr.est, ymin = bfpr.lcl, ymax = bfpr.ucl)) + 
     geom_bar(stat = "identity") + 
     geom_errorbar() + 
     labs(x = "Sequence depth (inclusive)", y = "False positives per Mb (approx.)", title = "False Positive Rate: Effect of Depth") + 
@@ -408,7 +408,7 @@ ggplot(fpr.vs_depth, aes(x = depth, y = bfpr.est, ymin = bfpr.lcl, ymax = bfpr.u
 
 # Now create an accessory plot showing the number of variants in each
 # depth class.  This varies per sample, so work from the variants_vs_depth structure.
-ggplot(variants_vs_depth.melted, aes(x = depth, y = count, group = sample, colour = sample)) + 
+ggplot(dropDepthUnknown(variants_vs_depth.melted), aes(x = depth, y = count, group = sample, colour = sample)) + 
     geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Sequence depth (inclusive)", y = "Variant positions with this depth", title = "Variant Count vs Depth", colour = "Sample Label") + 
     theme_bw()
@@ -419,7 +419,7 @@ ggplot(variants_vs_depth.melted, aes(x = depth, y = count, group = sample, colou
 # variants in each depth class.
 fpr.NFPi_melted = melt(fpr.NFPi, value.name = "count")
 
-ggplot(fpr.NFPi_melted, aes(x = depth, y = count, group = sample, colour = sample)) + 
+ggplot(dropDepthUnknown(fpr.NFPi_melted), aes(x = depth, y = count, group = sample, colour = sample)) + 
     geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Sequence depth (inclusive)", y = "False positives with this depth", title = "False Positive Count: Effect of Depth") + 
     theme_bw()

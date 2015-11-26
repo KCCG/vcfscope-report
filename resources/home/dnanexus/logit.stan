@@ -12,11 +12,10 @@ parameters {
 	real x[M];			// logit-transformed success rate in each sample
 	real mu;			// Underlying mean success rate (logit-transformed)
 	real<lower=0> tau;	// Precision of success rate distribution
-
 }
 
 transformed parameters {
-	real r[M];			// Success rate in each sample
+	real<lower=0,upper=1> r[M];	// Success rate in each sample
 	for (i in 1:M)
 		r[i] <- inv_logit(x[i]);
 }
