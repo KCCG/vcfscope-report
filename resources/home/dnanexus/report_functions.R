@@ -2,8 +2,8 @@ library(ggplot2)
 library(scales)
 library(plyr)
 
-suppressMessages(library(rstan))
-suppressMessages(library(coda))       # For HPDinterval
+suppressPackageStartupMessages(library(rstan))
+suppressPackageStartupMessages(library(coda))       # For HPDinterval
 STAN_LOGIT = stan_model("logit.stan")
 
 set.seed(as.double(Sys.time()))
@@ -259,7 +259,7 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         # Hack to get around Stan being unavoidably chatty.  Bit of a hack, but we don't 
         # lose the stan exception warnings at least (are they in C code?)
         sink("/dev/null")
-        stan.result = sampling(STAN_LOGIT, data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10, init = stan_init_func)
+        stan.result = sampling(STAN_LOGIT, data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10, init = stan_init_func, refresh = 0)
         sink()
 
         mu_samples = extract(stan.result, "mu")[[1]]

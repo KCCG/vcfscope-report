@@ -232,7 +232,7 @@ substs_vs_depth.melted = melt(substs_vs_depth, value.name = "count")
 % SENSITIVITY: SNVs
 % --------------------------------------------------------------------
 
-<<sensitivity-snv-marginal-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold',echo=FALSE,message=FALSE,error=FALSE,warning=FALSE>>=
+<<sensitivity-snv-marginal-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
 ggplot(relabelZyg(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), model = CI_MODEL, conf_level = CI_LEVEL)), 
     aes(x = zyg, y = sens.est, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
@@ -259,14 +259,14 @@ ggplot(dropDepthUnknown(relabelZyg(calcPerformanceStats(data, quote(muttype == "
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Sequence depth (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "SNV Detection vs Depth") + 
-    theme_bw() + ylim(0, 1)
+    theme_bw() + ylim(0, 1) + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
 
 ggplot(dropDepthUnknown(relabelZyg(substs_vs_depth.melted)), 
     aes(x = depth, y = count, lty = sample, shape = sample, colour = zyg, group = sample:zyg)) + 
     geom_line() + geom_point(size = 2, fill = "white") + 
     labs(x = "Sequence depth (inclusive)", y = "Variants with this depth", title = "SNV Counts vs Depth", colour = "Zygosity", shape = "Sample Label", lty = "Sample Label") + 
-    theme_bw()
+    theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 @
 
 
@@ -282,7 +282,7 @@ ggplot(dropSizeZero(relabelZyg(calcPerformanceStats(data, quote(muttype == "Ins"
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases inserted (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Insertion Detection Performance") + 
-    theme_bw() + ylim(0, 1)
+    theme_bw() + ylim(0, 1) + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
 ggplot(
     dropSizeZero(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)))),
@@ -290,7 +290,7 @@ ggplot(
     geom_line() + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases inserted (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "Insertion Counts in Gold Standard") + 
-    theme_bw()
+    theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 @
 
 
@@ -306,14 +306,14 @@ ggplot(dropSizeZero(relabelZyg(calcPerformanceStats(data, quote(muttype == "Del"
     geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases deleted (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Deletion Detection Performance") + 
-    theme_bw() + ylim(0, 1)
+    theme_bw() + ylim(0, 1) + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
 ggplot(dropSizeZero(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)))), 
     aes(x = mutsize, y = ntp + nfn, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases deleted (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "Deletion Counts in Gold Standard") + 
-    theme_bw()
+    theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 @
 
 
@@ -322,7 +322,7 @@ ggplot(dropSizeZero(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.pe
 % --------------------------------------------------------------------
 
 \subsection{False Positive Rate}
-<<falsepositive-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<falsepositive-plots,fig.width=7,fig.height=5,out.width='2.5in',fig.show='hold'>>=
 # FPR here is defined as number of FP calls per megabase of sequence within
 # the subset under consideration.  Unfortunately, this denominator (the
 # megabases of sequence in the subset) is not exactly known, as it cannot
@@ -401,9 +401,9 @@ fpr.vs_depth$bfpr.ucl = fpr.vs_depth$fpr.ucl * fpr.N/fpr.S * 1e6
 # Plot BFPRi ~ depth.  This is averaged over the replicate samples.
 ggplot(dropDepthUnknown(fpr.vs_depth), aes(x = depth, y = bfpr.est, ymin = bfpr.lcl, ymax = bfpr.ucl)) + 
     geom_bar(stat = "identity") + 
-    geom_errorbar() + 
+    geom_errorbar(width = 0.2) + 
     labs(x = "Sequence depth (inclusive)", y = "False positives per Mb (approx.)", title = "False Positive Rate: Effect of Depth") + 
-    theme_bw()
+    theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
 
 # Now create an accessory plot showing the number of variants in each
@@ -411,18 +411,18 @@ ggplot(dropDepthUnknown(fpr.vs_depth), aes(x = depth, y = bfpr.est, ymin = bfpr.
 ggplot(dropDepthUnknown(variants_vs_depth.melted), aes(x = depth, y = count, group = sample, colour = sample)) + 
     geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Sequence depth (inclusive)", y = "Variant positions with this depth", title = "Variant Count vs Depth", colour = "Sample Label") + 
-    theme_bw()
+    theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
 
 # Finally create a plot which is effectively the combination of the
 # previous two.  This is, for each sample, the number of false positive
 # variants in each depth class.
-fpr.NFPi_melted = melt(fpr.NFPi, value.name = "count")
+# fpr.NFPi_melted = melt(fpr.NFPi, value.name = "count")
 
-ggplot(dropDepthUnknown(fpr.NFPi_melted), aes(x = depth, y = count, group = sample, colour = sample)) + 
-    geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
-    labs(x = "Sequence depth (inclusive)", y = "False positives with this depth", title = "False Positive Count: Effect of Depth") + 
-    theme_bw()
+# ggplot(dropDepthUnknown(fpr.NFPi_melted), aes(x = depth, y = count, group = sample, colour = sample)) + 
+#     geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
+#     labs(x = "Sequence depth (inclusive)", y = "False positives with this depth", title = "False Positive Count: Effect of Depth") + 
+#     theme_bw()
 @
 
 
