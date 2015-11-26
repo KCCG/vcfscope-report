@@ -256,9 +256,8 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         # Original chatty code, always reported timing info.  See the silencing hack below.
         # stan.result = sampling(STAN_LOGIT, data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10, init = stan_init_func, refresh = 0)
         
-        # Hack to get around Stan being unavoidably chatty.  Not ideal as we lose error 
-        # messages too, but can't be helped without putting the stan calcs in a separate 
-        # script:
+        # Hack to get around Stan being unavoidably chatty.  Bit of a hack, but we don't 
+        # lose the stan exception warnings at least (are they in C code?)
         sink("/dev/null")
         stan.result = sampling(STAN_LOGIT, data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10, init = stan_init_func)
         sink()
