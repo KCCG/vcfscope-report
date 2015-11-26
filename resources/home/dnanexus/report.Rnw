@@ -250,9 +250,14 @@ ggplot(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.performance_thr
     scale_x_discrete(labels = c("RA" = "Het", "AA" = "HomAlt"))
 @
 
-<<sensitivity-snv-marginal-table,results='asis'>>=
-print(generateSensitivityCountXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), caption = "SNV sensitivity"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+<<sensitivity-snv-marginal-summary-table,results='asis'>>=
+print(generateSensitivitySummaryXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), ci_method = CI_MODEL, ci_level = CI_LEVEL, add_total_var_count = TRUE, caption = "SNV sensitivity: summary"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
+
+<<sensitivity-snv-marginal-persample-table,results='asis'>>=
+print(generateSensitivityCountXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), caption = "SNV sensitivity: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
 
 
 <<sensitivity-snv-bydepth-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
@@ -273,8 +278,12 @@ ggplot(dropDepthUnknown(relabelZyg(substs_vs_depth.melted)),
 @
 
 
-<<sensitivity-snv-bydepth-table,results='asis'>>=
-print(generateSensitivityCountXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), caption = "SNV sensitivity by depth"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+<<sensitivity-snv-bydepth-summary-table,results='asis'>>=
+print(generateSensitivitySummaryXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), ci_method = CI_MODEL, ci_level = CI_LEVEL, add_total_var_count = FALSE, caption = "SNV sensitivity by depth: summary"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
+<<sensitivity-snv-bydepth-persample-table,results='asis'>>=
+print(generateSensitivityCountXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), caption = "SNV sensitivity by depth: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
@@ -303,8 +312,12 @@ ggplot(
 @
 
 
-<<sensitivity-ins-bysize-table,results='asis'>>=
-print(generateSensitivityCountXTable(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), caption = "Insertion sensitivity"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+<<sensitivity-ins-bysize-summary-table,results='asis'>>=
+print(generateSensitivitySummaryXTable(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), ci_method = CI_MODEL, ci_level = CI_LEVEL, add_total_var_count = TRUE, caption = "Insertion sensitivity by size: summary"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
+<<sensitivity-ins-bysize-persample-table,results='asis'>>=
+print(generateSensitivityCountXTable(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), caption = "Insertion sensitivity by size: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
@@ -331,7 +344,11 @@ ggplot(dropSizeZero(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.pe
 @
 
 
-<<sensitivity-del-bysize-table,results='asis'>>=
+<<sensitivity-del-bysize-summary-table,results='asis'>>=
+print(generateSensitivitySummaryXTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), ci_method = CI_MODEL, ci_level = CI_LEVEL, add_total_var_count = TRUE, caption = "Deletion sensitivity by size: summary"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
+<<sensitivity-del-bysize-persample-table,results='asis'>>=
 print(generateSensitivityCountXTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), caption = "Deletion sensitivity"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 

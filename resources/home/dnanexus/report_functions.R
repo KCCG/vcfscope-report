@@ -23,21 +23,24 @@ formatC2 = function(x, ...)
 
 relabelZyg = function(data)
 {
-    data$zyg = ordered(c("RR" = "HomRef", "RA" = "Het", "AA" = "HomAlt", "AB" = "HetAlt")[as.character(data$zyg)], levels = c("Hom", "Het", "HomAlt", "HetAlt"))
+    if ("zyg" %in% colnames(data))
+        data$zyg = ordered(c("RR" = "HomRef", "RA" = "Het", "AA" = "HomAlt", "AB" = "HetAlt")[as.character(data$zyg)], levels = c("Hom", "Het", "HomAlt", "HetAlt"))
     data
 }
 
 
 dropSizeZero = function(data)
 {
-    data = data[data$mutsize != "0",]
+    if ("mutsize" %in% colnames(data))
+        data = data[data$mutsize != "0",]
     data
 }
 
 
 dropDepthUnknown = function(data)
 {
-    data = data[data$depth != "Unknown",]
+    if ("depth" %in% colnames(data))
+        data = data[data$depth != "Unknown",]
     data
 }
 
@@ -48,7 +51,16 @@ generateSensitivityCountTable = function(data, subset, vars)
     id_translator = unlist(llply(data, function(x) x$label))
     tbl$.id = id_translator[tbl$.id]
 
-    tbl
+    giveTablePrettyHeaders(dropSizeZero(dropDepthUnknown(relabelZyg(tbl))))
+}
+
+
+generateSensitivitySummaryTable = function(data, subset, vars, ci_method, ci_level)
+{
+    stats = calcPerformanceStats(data, subset, vars, model = ci_method, conf_level = ci_level)
+    stats$sens.ci = sprintf("%.4f-%.4f", stats$sens.lcl, stats$sens.ucl)
+
+    giveTablePrettyHeaders(dropSizeZero(dropDepthUnknown(relabelZyg(stats))))
 }
 
 
@@ -60,11 +72,13 @@ giveTablePrettyHeaders = function(tbl)
         ".id" = "Sample Label",
         "zyg" = "Zygosity",
         "depth" = "Depth",
-        "mutsize" = "Mutation size",
+        "mutsize" = "Size",
         "ntp" = "True positives",
         "nfn" = "False negatives",
         # "n" = "Total variants",
-        "sens" = "Sensitivity"
+        "sens" = "Sensitivity",
+        "sens.est" = "Sensitivity",
+        "sens.ci" = "CI"
     )
 
     tbl = tbl[,colnames(tbl) %in% names(colname_translator)]
@@ -78,9 +92,34 @@ giveTablePrettyHeaders = function(tbl)
 
 generateSensitivityCountXTable = function(data, subset, vars, ...)
 {
-    tbl = giveTablePrettyHeaders(relabelZyg(generateSensitivityCountTable(data, subset, vars)))
+    tbl = generateSensitivityCountTable(data, subset, vars)
     n = ncol(tbl)
     xtable(tbl, digits = c(rep(0, n), 4), display = c(rep("s", n - 2), "d", "d", "f"), ...)
+}
+
+
+generateSensitivitySummaryXTable = function(data, subset, vars, ci_method, ci_level, add_total_var_count = FALSE, ...)
+{
+    tbl = generateSensitivitySummaryTable(data, subset, vars, ci_method, ci_level)
+    tbl[,"CI"] = paste("$", tbl[,"CI"], "$", sep = "")
+
+    if (add_total_var_count)
+    {
+        counts = dropSizeZero(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, subset, vars))
+        old_colnames = colnames(tbl)
+        n = ncol(tbl)
+        tbl = cbind(tbl[,1:(n-2)], counts$ntp + counts$nfn, tbl[,(n-1):n])
+        colnames(tbl) = c(old_colnames[1:(n-2)], "True variants", old_colnames[(n-1):n])
+        n = ncol(tbl)
+        xtbl = xtable(tbl, digits = c(rep(0, n-1), 4, 4), display = c(rep("s", n-2), "d", "f", "f"), ...)
+    }
+    else
+    {
+        n = ncol(tbl)
+        xtbl = xtable(tbl, digits = c(rep(0, n-1), 4, 4), display = c(rep("s", n-1), "f", "f"), ...)
+    }
+
+    xtbl
 }
 
 
