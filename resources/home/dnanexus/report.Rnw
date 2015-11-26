@@ -14,6 +14,7 @@
 \usepackage{geometry}
 \usepackage{amsmath}
 \usepackage{booktabs}
+\usepackage{longtable}
 \usepackage[usenames,dvipsnames,svgnames,table]{xcolor}
 \usepackage{url}
 
@@ -49,9 +50,10 @@ source("report_functions.R")
 %--------------------------------------------------------------------
 
 <<settings, cache=FALSE, echo=FALSE>>=
+# CI_MODEL = "none"
 # CI_MODEL = "betabin"
 CI_MODEL = "stan"
-CI_LEVEL = 0.95
+CI_LEVEL = 0.90
 @
 
 
@@ -249,6 +251,7 @@ ggplot(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.performance_thr
 @
 
 <<sensitivity-snv-marginal-table,results='asis'>>=
+print(generateSensitivityCountXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), caption = "SNV sensitivity"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
@@ -270,12 +273,17 @@ ggplot(dropDepthUnknown(relabelZyg(substs_vs_depth.melted)),
 @
 
 
+<<sensitivity-snv-bydepth-table,results='asis'>>=
+print(generateSensitivityCountXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), caption = "SNV sensitivity by depth"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
+
 
 % SENSITIVITY: INSERTIONS
 % --------------------------------------------------------------------
 
 \subsubsection{Insertions}
-<<sensitivity-ins-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<sensitivity-ins-bysize-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
 ggplot(dropSizeZero(relabelZyg(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL))), 
     aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
@@ -291,6 +299,12 @@ ggplot(
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases inserted (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "Insertion Counts in Gold Standard") + 
     theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+@
+
+
+<<sensitivity-ins-bysize-table,results='asis'>>=
+print(generateSensitivityCountXTable(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), caption = "Insertion sensitivity"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
@@ -299,7 +313,7 @@ ggplot(
 % --------------------------------------------------------------------
 
 \subsubsection{Deletions}
-<<sensitivity-del-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<sensitivity-del-bysize-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
 ggplot(dropSizeZero(relabelZyg(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL))), 
     aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
@@ -314,6 +328,11 @@ ggplot(dropSizeZero(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.pe
     geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Number of bases deleted (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "Deletion Counts in Gold Standard") + 
     theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+@
+
+
+<<sensitivity-del-bysize-table,results='asis'>>=
+print(generateSensitivityCountXTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), caption = "Deletion sensitivity"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
@@ -425,6 +444,16 @@ ggplot(dropDepthUnknown(variants_vs_depth.melted), aes(x = depth, y = count, gro
 #     theme_bw()
 @
 
+
+<<falsepositive-table,results='asis'>>=
+temp = fpr.vs_depth
+temp = temp[temp$depth != "Unknown",c("depth", "bfpr.est", "bfpr.lcl", "bfpr.ucl")]
+temp[,3] = sprintf("$%.2f-%.2f$", temp[,3], temp[,4])
+temp = temp[,-4]
+colnames(temp) = c("Depth", "FPR estimate", sprintf("$%d\\%%$ CI", as.integer(round(CI_LEVEL*100))))
+
+print(xtable(temp, caption = "Approximate false positive rate (false positives per megabase)"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
 
 
 % DATA AND SOFTWARE VERSIONS

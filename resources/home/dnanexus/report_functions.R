@@ -42,6 +42,48 @@ dropDepthUnknown = function(data)
 }
 
 
+generateSensitivityCountTable = function(data, subset, vars)
+{
+    tbl = ldply(data, function(x) marginalizePerformance(x$class_subsets.performance_thresholded, subset, vars))
+    id_translator = unlist(llply(data, function(x) x$label))
+    tbl$.id = id_translator[tbl$.id]
+
+    tbl
+}
+
+
+giveTablePrettyHeaders = function(tbl)
+{
+    # The table columns will be in this order.  Commented-out or missing
+    # columns will not be kept in the output.
+    colname_translator = c(
+        ".id" = "Sample Label",
+        "zyg" = "Zygosity",
+        "depth" = "Depth",
+        "mutsize" = "Mutation size",
+        "ntp" = "True positives",
+        "nfn" = "False negatives",
+        # "n" = "Total variants",
+        "sens" = "Sensitivity"
+    )
+
+    tbl = tbl[,colnames(tbl) %in% names(colname_translator)]
+    colname_translator = colname_translator[names(colname_translator) %in% colnames(tbl)]
+    tbl = tbl[,names(colname_translator)]
+    colnames(tbl) = colname_translator[colnames(tbl)]
+
+    tbl
+}
+
+
+generateSensitivityCountXTable = function(data, subset, vars, ...)
+{
+    tbl = giveTablePrettyHeaders(relabelZyg(generateSensitivityCountTable(data, subset, vars)))
+    n = ncol(tbl)
+    xtable(tbl, digits = c(rep(0, n), 4), display = c(rep("s", n - 2), "d", "d", "f"), ...)
+}
+
+
 plotGenomeBreakdown = function(f_targ_of_wg, f_gold_of_targ,
     B = 0.3, D = 0.06, E = 0.03, 
     mar.left = 0.0, mar.right = 0.0, mar.top = 0.0, mar.bottom = 0.2,
@@ -189,7 +231,7 @@ betaBinomML = function(x, S)
 }
 
 
-replicatedBinomialCI = function(successes, failures, conf_level, model = c("betabin", "stan"))
+replicatedBinomialCI = function(successes, failures, conf_level, model = c("betabin", "stan", "none"))
 {
     # Estimate central tendency and confidence limits for the
     # success rate of a binomial process that has been measured
@@ -268,6 +310,8 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         result$lcl = plogis(mu_ci[[1]])
         result$ucl = plogis(mu_ci[[2]])
     }
+    else if (model == "none")
+        result$est = sum(successes) / (sum(successes) + sum(failures))
 
     result
 }
