@@ -349,7 +349,7 @@ print(generateSensitivitySummaryXTable(data, quote(muttype == "Del" & zyg %in% c
 @
 
 <<sensitivity-del-bysize-persample-table,results='asis'>>=
-print(generateSensitivityCountXTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), caption = "Deletion sensitivity"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+print(generateSensitivityCountXTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), caption = "Deletion sensitivity by size: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
