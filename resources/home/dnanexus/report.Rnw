@@ -38,6 +38,7 @@
 suppressMessages(library(GenomicRanges))
 suppressMessages(library(ggplot2))
 suppressMessages(library(plyr))
+suppressMessages(library(reshape2))
 suppressMessages(library(xtable))
 
 source("report_functions.R")
@@ -51,9 +52,10 @@ source("report_functions.R")
 
 <<settings, cache=FALSE, echo=FALSE>>=
 # CI_MODEL = "none"
-# CI_MODEL = "betabin"
-CI_MODEL = "stan"
+# CI_MODEL = "betabin.ml"
+CI_MODEL = "logit.bayes"
 CI_LEVEL = 0.90
+CI_HEADING = sprintf("$%d\\%%$ CI", as.integer(round(CI_LEVEL*100)))
 @
 
 
@@ -118,11 +120,17 @@ options(warn = 1)
 @
 
 
+% CREATE A LIST TO SAVE RESULTS FOR THE OUTPUT SUMMARY RDS
+% --------------------------------------------------------------------
+<<create-save-object>>=
+saved_results = list(data = data, tables = list(snv = list(), ins = list(), del = list(), fpr = list()), shared_params = shared_params, shared_hashes = shared_hashes, universe = universe)
+@
+
 
 % SUPPLIED REGION BED DETAILS
 % --------------------------------------------------------------------
 
-<<region-details, echo=FALSE, cache=FALSE>>=
+<<region-details>>=
 temp.region_md5 = "NA"
 temp.region_label = "NO"
 if (shared_params$region.subset)
@@ -209,8 +217,6 @@ plotGenomeBreakdown(f_targ_of_wg = temp.size_subset / temp.size_genome, f_gold_o
 # Calculate the frequency of variants at each depth in each sample,
 # for either all variants (variants_vs_depth), or substitutions only 
 # (substs_vs_depth)
-library(reshape2)
-
 variants_vs_depth = sapply(data, function(x) dlply(x$class_subsets.performance_thresholded, .(depth), function(y) sum(y$ntp + y$nfn)))
 names(dimnames(variants_vs_depth)) = c("depth", "sample")
 variants_vs_depth = matrix(unlist(variants_vs_depth), ncol = length(data), dimnames = dimnames(variants_vs_depth))
@@ -245,17 +251,20 @@ ggplot(relabelZyg(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in%
 ggplot(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg))),
     aes(x = zyg, y = n, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
-    labs(x = "", y = "Number of mutations", fill = "Zygosity", title = "SNV Counts in Gold Standard") + 
+    labs(x = "", y = "Number of variants", fill = "Zygosity", title = "SNV Counts in Gold Standard") + 
     theme_bw() + 
     scale_x_discrete(labels = c("RA" = "Het", "AA" = "HomAlt"))
 @
 
 <<sensitivity-snv-marginal-summary-table,results='asis'>>=
-print(generateSensitivitySummaryXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), ci_method = CI_MODEL, ci_level = CI_LEVEL, add_total_var_count = TRUE, caption = "SNV sensitivity: summary"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+saved_results$tables$snv$zyg.summary = generateSensitivitySummaryTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), ci_method = CI_MODEL, ci_level = CI_LEVEL)
+temp_counts = dropSizeZero(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg)))
+print(convertSensitivitySummaryTableToXTable(saved_results$tables$snv$zyg.summary, total_var_count = temp_counts, caption = "SNV sensitivity: summary", ci_heading = CI_HEADING), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 <<sensitivity-snv-marginal-persample-table,results='asis'>>=
-print(generateSensitivityCountXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), caption = "SNV sensitivity: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+saved_results$tables$snv$zyg.sample = generateSensitivityCountTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg))
+print(convertSensitivityCountTableToXTable(saved_results$tables$snv$zyg.sample, caption = "SNV sensitivity: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
@@ -279,11 +288,13 @@ ggplot(dropDepthUnknown(relabelZyg(substs_vs_depth.melted)),
 
 
 <<sensitivity-snv-bydepth-summary-table,results='asis'>>=
-print(generateSensitivitySummaryXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), ci_method = CI_MODEL, ci_level = CI_LEVEL, add_total_var_count = FALSE, caption = "SNV sensitivity by depth: summary"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+saved_results$tables$snv$zyg.depth.summary = generateSensitivitySummaryTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), ci_method = CI_MODEL, ci_level = CI_LEVEL)
+print(convertSensitivitySummaryTableToXTable(saved_results$tables$snv$zyg.depth.summary, total_var_count = NULL, caption = "SNV sensitivity by depth: summary", ci_heading = CI_HEADING), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 <<sensitivity-snv-bydepth-persample-table,results='asis'>>=
-print(generateSensitivityCountXTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), caption = "SNV sensitivity by depth: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+saved_results$tables$snv$zyg.depth.sample = generateSensitivityCountTable(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth))
+print(convertSensitivityCountTableToXTable(saved_results$tables$snv$zyg.depth.sample, caption = "SNV sensitivity by depth: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
@@ -306,18 +317,21 @@ ggplot(
     aes(x = mutsize, y = ntp + nfn, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_point(size = 2, shape = 21, fill = "white") + 
-    labs(x = "Number of bases inserted (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "Insertion Counts in Gold Standard") + 
+    labs(x = "Number of bases inserted (inclusive)", y = "Number of variants", fill = "Zygosity", colour = "Zygosity", title = "Insertion Counts in Gold Standard") + 
     theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
 @
 
 
 <<sensitivity-ins-bysize-summary-table,results='asis'>>=
-print(generateSensitivitySummaryXTable(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), ci_method = CI_MODEL, ci_level = CI_LEVEL, add_total_var_count = TRUE, caption = "Insertion sensitivity by size: summary"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+saved_results$tables$ins$zyg.mutsize.summary = generateSensitivitySummaryTable(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), ci_method = CI_MODEL, ci_level = CI_LEVEL)
+temp_counts = dropSizeZero(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize)))
+print(convertSensitivitySummaryTableToXTable(saved_results$tables$ins$zyg.mutsize.summary, total_var_count = temp_counts, caption = "Insertion sensitivity by size: summary", ci_heading = CI_HEADING), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 <<sensitivity-ins-bysize-persample-table,results='asis'>>=
-print(generateSensitivityCountXTable(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), caption = "Insertion sensitivity by size: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+saved_results$tables$ins$zyg.mutsize.sample = generateSensitivityCountTable(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize))
+print(convertSensitivityCountTableToXTable(saved_results$tables$ins$zyg.mutsize.sample, caption = "Insertion sensitivity by size: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
@@ -339,17 +353,20 @@ ggplot(dropSizeZero(relabelZyg(marginalizePerformance(data[[1]]$class_subsets.pe
     aes(x = mutsize, y = ntp + nfn, group = zyg, colour = zyg)) + 
     geom_line() + 
     geom_point(size = 2, shape = 21, fill = "white") + 
-    labs(x = "Number of bases deleted (inclusive)", y = "Number of mutations", fill = "Zygosity", colour = "Zygosity", title = "Deletion Counts in Gold Standard") + 
+    labs(x = "Number of bases deleted (inclusive)", y = "Number of variants", fill = "Zygosity", colour = "Zygosity", title = "Deletion Counts in Gold Standard") + 
     theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 @
 
 
 <<sensitivity-del-bysize-summary-table,results='asis'>>=
-print(generateSensitivitySummaryXTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), ci_method = CI_MODEL, ci_level = CI_LEVEL, add_total_var_count = TRUE, caption = "Deletion sensitivity by size: summary"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+saved_results$tables$del$zyg.mutsize.summary = generateSensitivitySummaryTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), ci_method = CI_MODEL, ci_level = CI_LEVEL)
+temp_counts = dropSizeZero(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize)))
+print(convertSensitivitySummaryTableToXTable(saved_results$tables$del$zyg.mutsize.summary, total_var_count = temp_counts, caption = "Deletion sensitivity by size: summary", ci_heading = CI_HEADING), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 <<sensitivity-del-bysize-persample-table,results='asis'>>=
-print(generateSensitivityCountXTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), caption = "Deletion sensitivity by size: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+saved_results$tables$del$zyg.mutsize.sample = generateSensitivityCountTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize))
+print(convertSensitivityCountTableToXTable(saved_results$tables$del$zyg.mutsize.sample, caption = "Deletion sensitivity by size: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
@@ -461,6 +478,8 @@ ggplot(dropDepthUnknown(variants_vs_depth.melted), aes(x = depth, y = count, gro
 #     theme_bw()
 @
 
+Averaged across all samples and depths, the aggregate false positive rate was \Sexpr{formatC(mean(colSums(fpr.NFPi))/temp.size_gold*1e6, format = "f", digits = 2)} (range $\Sexpr{formatC(min(colSums(fpr.NFPi))/temp.size_gold*1e6, format = "f", digits = 2)}-\Sexpr{formatC(max(colSums(fpr.NFPi))/temp.size_gold*1e6, format = "f", digits = 2)}$) false positive calls per megabase.
+
 
 <<falsepositive-table,results='asis'>>=
 temp = fpr.vs_depth
@@ -468,6 +487,7 @@ temp = temp[temp$depth != "Unknown",c("depth", "bfpr.est", "bfpr.lcl", "bfpr.ucl
 temp[,3] = sprintf("$%.2f-%.2f$", temp[,3], temp[,4])
 temp = temp[,-4]
 colnames(temp) = c("Depth", "FPR estimate", sprintf("$%d\\%%$ CI", as.integer(round(CI_LEVEL*100))))
+saved_results$tables$fpr = temp
 
 print(xtable(temp, caption = "Approximate false positive rate (false positives per megabase)"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
@@ -503,7 +523,7 @@ print(xtable(temp, caption = "Approximate false positive rate (false positives p
 % SAVE REPORT DATA
 %--------------------------------------------------------------------
 <<save>>=
-saveRDS(data, file = "report.rds")
+saveRDS(saved_results, file = "report.rds")
 @
 
 \end{document}
