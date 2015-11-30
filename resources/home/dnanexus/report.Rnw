@@ -53,7 +53,8 @@ source("report_functions.R")
 <<settings, cache=FALSE, echo=FALSE>>=
 # CI_MODEL = "none"
 # CI_MODEL = "betabin.ml"
-CI_MODEL = "logit.bayes"
+CI_MODEL = "binomial.ml"
+# CI_MODEL = "logit.bayes"
 CI_LEVEL = 0.90
 CI_HEADING = sprintf("$%d\\%%$ CI", as.integer(round(CI_LEVEL*100)))
 @
@@ -181,7 +182,7 @@ Call criterion: \Sexpr{shared_params$criterion_latex} \\
 \section{Samples}
 <<sample-table,results='asis'>>=
 temp.sample_table = data.frame(
-    "Sample Label" = sapply(data, function(x) texquote(x$label)),
+    "Label" = sapply(data, function(x) texquote(x$label)),
     "VCF ID" = sapply(data, function(x) texquote(x$params$sample.id)),
     "VCF File" = paste("\\texttt{", sapply(data, function(x) texquote(gsub(".*/", "", x$params$path.test.orig))), "}"))
 colnames(temp.sample_table) = gsub("\\.", " ", colnames(temp.sample_table))
@@ -521,7 +522,7 @@ print(xtable(temp, caption = "Approximate false positive rate (false positives p
 \end{itemize}
 
 
-\section{VCF file hashes}
+\section{VCF file MD5 hashes}
 <<data-hashes,results='asis'>>=
 hash_strings = sprintf("\\item[\\texttt{%s}] \\texttt{%s}", 
     sapply(data, function(x) texquote(gsub(".*/", "", x$params$path.test.orig))), 

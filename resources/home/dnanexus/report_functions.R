@@ -295,7 +295,7 @@ betaBinomML = function(x, S)
 }
 
 
-replicatedBinomialCI = function(successes, failures, conf_level, model = c("betabin.ml", "logit.bayes", "none"))
+replicatedBinomialCI = function(successes, failures, conf_level, model = c("betabin.ml", "binomial.ml", "logit.bayes", "none"))
 {
     # Estimate central tendency and confidence limits for the
     # success rate of a binomial process that has been measured
@@ -330,6 +330,17 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         result$lcl = ci[["lower"]]
         result$ucl = ci[["upper"]]
     }
+    else if (model == "binomial.ml")
+    {
+        if (length(successes) != 0 && sum(successes + failures) > 0)
+        {
+            fit = glm(cbind(successes, failures) ~ 1, family = "binomial")
+            ci = confint(fit, level = conf_level)
+            result$est = plogis(coef(fit)[[1]])
+            result$lcl = plogis(ci[[1]])
+            result$ucl = plogis(ci[[2]])
+        }
+    }
     else if (model == "logit.bayes")
     {
         # Prior:
@@ -338,7 +349,9 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         #   
         #   Derive alpha, beta from mean, sd of tau as:
         #     alpha = (mean/sd)^2     beta = mean/sd^2
-        #   Reasonable starting values are mean = 1, sd = 0.45 => alpha = 5, beta = 5.
+        #   Reasonable starting values are PSS = 1, alpha = 5, beta = 10 (prior mass
+        #   is concentrated at high and low rates), and PSS = 1, alpha = 5, beta = 5 
+        #   (prior is approximately uniform, with slight peaks at the extremes).
         #   PSS is less obvious.  This could be tuned.
 
         stan_init_func = function(chain_id) { 
@@ -355,7 +368,7 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
             list(x = init_x, mu = init_mu, tau = init_tau)
         }
 
-        data = list(M = length(successes), PSS = 1, alpha = 5, beta = 5, n = successes, m = failures)
+        data = list(M = length(successes), PSS = 1, alpha = 5, beta = 10, n = successes, m = failures)
 
         # Original chatty code, always reported timing info.  See the silencing hack below.
         # stan.result = sampling(STAN_LOGIT, data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10, init = stan_init_func, refresh = 0)
