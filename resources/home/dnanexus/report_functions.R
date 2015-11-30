@@ -338,9 +338,7 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         #   
         #   Derive alpha, beta from mean, sd of tau as:
         #     alpha = (mean/sd)^2     beta = mean/sd^2
-        #   Reasonable starting values are mean = 2, sd = 2 => alpha = 1, beta = 0.5;
-        #   this corresponds to a performance sd of 0.1, which is a conservative setting
-        #   given the behaviour of the data so far.
+        #   Reasonable starting values are mean = 1, sd = 0.45 => alpha = 5, beta = 5.
         #   PSS is less obvious.  This could be tuned.
 
         stan_init_func = function(chain_id) { 
@@ -357,7 +355,7 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
             list(x = init_x, mu = init_mu, tau = init_tau)
         }
 
-        data = list(M = length(successes), PSS = 0.5, alpha = 5.3, beta = 7.7, n = successes, m = failures)
+        data = list(M = length(successes), PSS = 1, alpha = 5, beta = 5, n = successes, m = failures)
 
         # Original chatty code, always reported timing info.  See the silencing hack below.
         # stan.result = sampling(STAN_LOGIT, data = data, pars = c("mu", "tau", "r"), chains = 5, iter = 10000, thin = 10, init = stan_init_func, refresh = 0)

@@ -88,7 +88,8 @@ for (path in rds_list)
         stopifnot(data[[path]]$params$version[[i]] == data[[1]]$params$version[[i]])
 }
 
-data.labels = abbreviate(gsub(".*/", "", names(data)))
+# data.labels = texquote(abbreviate(gsub(".*/", "", names(data))))
+data.labels = paste("S", 1:length(names(data)), sep = "")
 names(data.labels) = names(data)
 for (i in seq_along(data))
     data[[i]]$label = data.labels[[i]]
@@ -180,7 +181,7 @@ Call criterion: \Sexpr{shared_params$criterion_latex} \\
 \section{Samples}
 <<sample-table,results='asis'>>=
 temp.sample_table = data.frame(
-    "Report Label" = sapply(data, function(x) texquote(x$label)),
+    "Sample Label" = sapply(data, function(x) texquote(x$label)),
     "VCF ID" = sapply(data, function(x) texquote(x$params$sample.id)),
     "VCF File" = paste("\\texttt{", sapply(data, function(x) texquote(gsub(".*/", "", x$params$path.test.orig))), "}"))
 colnames(temp.sample_table) = gsub("\\.", " ", colnames(temp.sample_table))
@@ -374,7 +375,7 @@ print(convertSensitivityCountTableToXTable(saved_results$tables$del$zyg.mutsize.
 % FALSE POSITIVE RATE
 % --------------------------------------------------------------------
 
-\subsection{False Positive Rate}
+\subsection{False positive rate}
 <<falsepositive-plots,fig.width=7,fig.height=5,out.width='2.5in',fig.show='hold'>>=
 # FPR here is defined as number of FP calls per megabase of sequence within
 # the subset under consideration.  Unfortunately, this denominator (the
@@ -520,6 +521,16 @@ print(xtable(temp, caption = "Approximate false positive rate (false positives p
 \end{itemize}
 
 
+\section{VCF file hashes}
+<<data-hashes,results='asis'>>=
+hash_strings = sprintf("\\item[\\texttt{%s}] \\texttt{%s}", 
+    sapply(data, function(x) texquote(gsub(".*/", "", x$params$path.test.orig))), 
+    sapply(data, function(x) gsub("\\s+$", "", x$hashes$path.test.orig)))
+cat(sprintf("\\begin{description}\n%s\n\\end{description}", paste(hash_strings, sep = "", concatenate = "")))
+@
+
+
+
 % SAVE REPORT DATA
 %--------------------------------------------------------------------
 <<save>>=
@@ -527,10 +538,3 @@ saveRDS(saved_results, file = "report.rds")
 @
 
 \end{document}
-
-
-
-
-% TODO
-% VCF MD5s
-% "MD5" = paste("\\texttt{", sapply(data, function(x) gsub("\\s+$", "", x$hashes$path.test.orig)), "}")

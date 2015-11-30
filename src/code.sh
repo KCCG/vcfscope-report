@@ -23,13 +23,15 @@ main() {
   cd ~
   # This R is Aaron's R-3.2.0 with pre-installed packages, with the following 
   # additional packages pre-installed:
-  # CRAN: inline, RSQLite, png, gsalib
+  # CRAN: inline, RSQLite, png, gsalib, BH, RcppEigen, gridExtra, StanHeaders, rstan, coda
   # BioC: VariantAnnotation, GenomicRanges, BSgenome
   dx cat "${DX_ASSETS_ID}:/assets/R-3.2.0.compiled.packages_v2.tar.gz" | tar -zxf -
   export PATH="$PWD/bin:$PATH"
   export RHOME=${HOME} # This is needed to make RScript work, since it was compiled in a different dir.
 
-  RPACKAGES=(BH_1.58.0-1.tar.gz RcppEigen_0.3.2.5.1.tar.gz gridExtra_2.0.0.tar.gz StanHeaders_2.8.0.tar.gz rstan_2.8.1.tar.gz coda_0.18-1.tar.gz)
+  # Install additional packages needed for rstan
+  # rstan itself is as a pre-compiled binary package, as it's slow to compile from source.
+  RPACKAGES=(BH_1.58.0-1.tar.gz RcppEigen_0.3.2.5.1.tar.gz gridExtra_2.0.0.tar.gz StanHeaders_2.8.0.tar.gz rstan_2.8.1_R_x86_64-unknown-linux-gnu.tar.gz coda_0.18-1.tar.gz)
   for RPACKAGE in ${RPACKAGES[*]}; do
     dx download "${DX_ASSETS_ID}:/assets/${RPACKAGE}"
     R CMD INSTALL ${RPACKAGE}
