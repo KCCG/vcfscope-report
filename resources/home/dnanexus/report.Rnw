@@ -55,7 +55,7 @@ source("report_functions.R")
 # CI_MODEL = "betabin.ml"
 CI_MODEL = "binomial.ml"
 # CI_MODEL = "logit.bayes"
-CI_LEVEL = 0.90
+CI_LEVEL = 0.95
 CI_HEADING = sprintf("$%d\\%%$ CI", as.integer(round(CI_LEVEL*100)))
 @
 

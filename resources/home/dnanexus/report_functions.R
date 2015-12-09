@@ -1,6 +1,7 @@
 library(ggplot2)
 library(scales)
 library(plyr)
+suppressPackageStartupMessages(library(lme4))
 
 suppressPackageStartupMessages(library(rstan))
 suppressPackageStartupMessages(library(coda))       # For HPDinterval
@@ -332,13 +333,28 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
     }
     else if (model == "binomial.ml")
     {
-        if (length(successes) != 0 && sum(successes + failures) > 0)
+        # The fit is flaky for unusual inputs, so try and sanitise 
+        # them as much as possible, and handle errors gracefully.
+        sel = successes + failures > 0
+        successes = successes[sel]
+        failures = failures[sel]
+        if (length(successes) > 0)
         {
-            fit = glm(cbind(successes, failures) ~ 1, family = "binomial")
-            ci = confint(fit, level = conf_level)
-            result$est = plogis(coef(fit)[[1]])
-            result$lcl = plogis(ci[[1]])
-            result$ucl = plogis(ci[[2]])
+            result$est = plogis(mean(qlogis(sum(successes) / sum(successes + failures))))
+            data = data.frame(sample = factor(seq_along(successes)), successes = successes, failures = failures)
+            if (diff(range(data$successes)) > 0)
+            {
+                fit = try(glmer(cbind(successes,failures) ~ 1 + (1 | sample), data = data, family = "binomial"))
+                if (class(fit) != "try-error")
+                {
+                    ci = try(confint(fit, parm = "(Intercept)", level = conf_level, method = "profile"))
+                    if (class(ci) != "try-error")
+                    {
+                        result$lcl = plogis(ci[[1]])
+                        result$ucl = plogis(ci[[2]])
+                    }
+                }
+            }
         }
     }
     else if (model == "logit.bayes")

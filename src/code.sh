@@ -37,6 +37,21 @@ main() {
     R CMD INSTALL ${RPACKAGE}
   done
 
+  # Install the nlopt library (needed by nloptr, which is needed by lme4)
+  dx download "${DX_ASSETS_ID}:/assets/nlopt-2.4.2.tar.gz"
+  tar -xvzf nlopt-2.4.2.tar.gz
+  cd nlopt-2.4.2
+  ./configure --with-pic
+  make && sudo make install
+  cd ~
+
+  # Install additional packages needed for lme4 (add RcppEigen_0.3.2.5.1.tar.gz also if rstan install code above is omitted)
+  RPACKAGES=(minqa_1.2.4.tar.gz nloptr_1.0.4.tar.gz lme4_1.1-10.tar.gz)
+  for RPACKAGE in ${RPACKAGES[*]}; do
+    dx download "${DX_ASSETS_ID}:/assets/${RPACKAGE}"
+    R CMD INSTALL ${RPACKAGE}
+  done
+
   # Fetch inputs
   dx-download-all-inputs --parallel
 
