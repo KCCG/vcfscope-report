@@ -338,7 +338,7 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         sel = successes + failures > 0
         successes = successes[sel]
         failures = failures[sel]
-        if (length(successes) > 0)
+        if (length(successes) > 0 && sum(successes + failures) > 0)
         {
             result$est = sum(successes) / sum(successes + failures)
             data = data.frame(sample = factor(seq_along(successes)), successes = successes, failures = failures)
