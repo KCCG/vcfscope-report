@@ -340,7 +340,7 @@ replicatedBinomialCI = function(successes, failures, conf_level, model = c("beta
         failures = failures[sel]
         if (length(successes) > 0)
         {
-            result$est = plogis(mean(qlogis(sum(successes) / sum(successes + failures))))
+            result$est = sum(successes) / sum(successes + failures)
             data = data.frame(sample = factor(seq_along(successes)), successes = successes, failures = failures)
             if (diff(range(data$successes)) > 0)
             {
