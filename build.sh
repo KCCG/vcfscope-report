@@ -21,21 +21,7 @@ function build_smoketest {
 }
 
 # Run a basic test of a deployed app.
-# The tests themselves are run by the script (-iruntests=true),
-# and are housed in resources/home/dnanexus/test-calcs.R
 function run_smoketest {
-  vcfgz=project-BVJz7k0098GX43GV9ZPFXVY2:file-Bf9b5qj098GppvyPX1P2K8Kf
-  region=project-BVJz7k0098GX43GV9ZPFXVY2:file-Bf9b5zQ098Ggq5zZ3kf846ZP
-
-  # Case 1: All samples in VCF
-  jobid=$(dx run app-kccg-validation-reporter/bamboo_smoketest -ivcfgz=$vcfgz -iregion=$region -iruntests=true --yes --brief)
-  dx watch -q --no-job-info  -f '{msg}' ${jobid}
-  dx describe ${jobid}
-
-  # Case 2: Specified sample in VCF
-  jobid=$(dx run app-kccg-validation-reporter/bamboo_smoketest -ivcfgz=$vcfgz -iregion=$region -iruntests=true -isampleIDs=NA12878-Vial1_140319_K3 --yes --brief)
-  dx watch -q --no-job-info  -f '{msg}' ${jobid}
-  dx describe ${jobid}
 }
 
 # Deploy and publish an app. This is irreversible (but the release can be deprecated).
