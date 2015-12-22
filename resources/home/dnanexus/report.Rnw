@@ -31,10 +31,44 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+% KNITR SETUP
+%--------------------------------------------------------------------
+
+<<setup, cache=FALSE, echo=FALSE>>=
+library(knitr)
+options(
+    tikzDocumentDeclaration = "\\documentclass[11pt]{article}",
+    tikzLatexPackages = c(
+        getOption("tikzLatexPackages"),
+        "\\usepackage{amsmath}"),
+    tikzMetricsDictionary="tikzMetrics"
+)
+opts_chunk$set(
+    results = 'markup', include = TRUE, echo = FALSE, message = FALSE, warning = FALSE, error = TRUE, 
+    cache = FALSE, cache.lazy = FALSE,
+    fig.align = 'center', fig.width = 5, fig.height = 5, out.width = '2.5in', fig.show = 'hold')
+opts_knit$set(progress = TRUE, verbose = TRUE)
+options(warn = 1)
+@
+
+
+% ERROR BAR GLOBAL SETTINGS
+%--------------------------------------------------------------------
+
+<<settings>>=
+# CI_MODEL = "none"
+# CI_MODEL = "betabin.ml"
+CI_MODEL = "binomial.ml"
+# CI_MODEL = "logit.bayes"
+CI_LEVEL = 0.95
+CI_HEADING = sprintf("$%d\\%%$ CI", as.integer(round(CI_LEVEL*100)))
+@
+
+
 % LIBRARIES AND HELPER FUNCTIONS
 %--------------------------------------------------------------------
 
-<<load-libs, cache=FALSE, echo=FALSE>>=
+<<load-libs>>=
 suppressMessages(library(GenomicRanges))
 suppressMessages(library(ggplot2))
 suppressMessages(library(plyr))
@@ -45,27 +79,10 @@ source("report_functions.R")
 @
 
 
-
-
-% ERROR BAR GLOBAL SETTINGS
-%--------------------------------------------------------------------
-
-<<settings, cache=FALSE, echo=FALSE>>=
-# CI_MODEL = "none"
-# CI_MODEL = "betabin.ml"
-CI_MODEL = "binomial.ml"
-# CI_MODEL = "logit.bayes"
-CI_LEVEL = 0.95
-CI_HEADING = sprintf("$%d\\%%$ CI", as.integer(round(CI_LEVEL*100)))
-@
-
-
-
-
 % LOAD PRECOMPUTED RESULTS
 %--------------------------------------------------------------------
 
-<<load-results, cache=FALSE, echo=FALSE>>=
+<<load-results>>=
 env = Sys.getenv(names = TRUE)
 rds_list_path = env["PARAM_INPUT_RDS_PATH"]
 rds_list = scan(rds_list_path, character())
@@ -98,27 +115,10 @@ for (i in seq_along(data))
 universe = data[[1]]$universe
 shared_params = data[[1]]$params[c("criterion", "criterion_latex", "region.subset", "region.subset.path", "path.gold.variants.orig", "path.gold.regions.orig", "genome", "path.genome", "version")]
 shared_hashes = data[[1]]$hashes[c("region.subset.path", "path.gold.variants.orig", "path.gold.regions.orig", "path.genome")]
-@
 
-
-
-% KNITR SETUP
-%--------------------------------------------------------------------
-
-<<setup, cache=FALSE, echo=FALSE>>=
-library(knitr)
-options(
-	tikzDocumentDeclaration = "\\documentclass[11pt]{article}",
-	tikzLatexPackages = c(
-		getOption("tikzLatexPackages"),
-		"\\usepackage{amsmath}"),
-	tikzMetricsDictionary="tikzMetrics"
-)
-opts_chunk$set(
-	echo = FALSE, results = 'markup', message = FALSE, warning = FALSE, error = TRUE, 
-	fig.align = 'center', cache = FALSE, cache.lazy = FALSE)
-opts_knit$set(progress = TRUE, verbose = TRUE)
-options(warn = 1)
+# Augment the data with alternative variant categories (eg binned size,
+# aggregate confidence).  These will be used in some summary plots.
+data = categoriseCallConfidence(data)
 @
 
 
@@ -230,6 +230,18 @@ names(dimnames(substs_vs_depth)) = c("sample", "depth", "zyg")
 dimnames(substs_vs_depth)$sample = data.labels[names(data)]
 substs_vs_depth = substs_vs_depth[,,c("RA", "AA")]
 substs_vs_depth.melted = melt(substs_vs_depth, value.name = "count")
+
+ins_vs_sizedepth = laply(data, function(x) daply(subset(x$class_subsets.performance_thresholded, muttype == "Ins" & zyg %in% c("RA", "AA")), .(depth, mutsize_binned, zyg), function(y) sum(y$ntp + y$nfn)))
+names(dimnames(ins_vs_sizedepth)) = c("sample", "depth", "mutsize_binned", "zyg")
+dimnames(ins_vs_sizedepth)$sample = data.labels[names(data)]
+ins_vs_sizedepth = ins_vs_sizedepth[,,,c("RA", "AA")]
+ins_vs_sizedepth.melted = melt(ins_vs_sizedepth, value.name = "count")
+
+del_vs_sizedepth = laply(data, function(x) daply(subset(x$class_subsets.performance_thresholded, muttype == "Del" & zyg %in% c("RA", "AA")), .(depth, mutsize_binned, zyg), function(y) sum(y$ntp + y$nfn)))
+names(dimnames(del_vs_sizedepth)) = c("sample", "depth", "mutsize_binned", "zyg")
+dimnames(del_vs_sizedepth)$sample = data.labels[names(data)]
+del_vs_sizedepth = del_vs_sizedepth[,,,c("RA", "AA")]
+del_vs_sizedepth.melted = melt(del_vs_sizedepth, value.name = "count")
 @
 
 
@@ -237,12 +249,44 @@ substs_vs_depth.melted = melt(substs_vs_depth, value.name = "count")
 
 \section{Performance}
 \subsection{Sensitivity}
+
+\subsubsection{Summary confidence classes}
+
+<<sensitivity-confclass-marginal-plots,fig.width=12,out.width='6in'>>=
+# Because the bars and errorbars have different widths
+# we need to specify how wide the objects we are dodging are
+temp.dodge = position_dodge(width = 0.9)
+
+ggplot(dropMuttypesOtherNone(relabelMuttype(relabelZyg(calcPerformanceStats(data, quote(zyg %in% c("RA", "AA")), .(muttype, confidence_class, zyg), model = CI_MODEL, conf_level = CI_LEVEL)))), 
+    aes(x = confidence_class, y = sens.est, fill = zyg)) + 
+    geom_bar(stat = "identity", position = temp.dodge) + 
+    geom_errorbar(aes(ymin = sens.lcl, ymax = sens.ucl), width = 0.2, position = temp.dodge) + 
+    labs(x = "", y = "Sensitivity", fill = "Zygosity", title = "Detection rate") + 
+    facet_wrap(~ muttype) + 
+    geom_hline(yintercept = c(0.8, 0.95, 0.99), linetype = "dashed", alpha = 0.5, lwd = 0.5) + 
+    theme_bw() + theme(axis.text.x = element_text(angle = 30, hjust = 1))
+@
+
+<<sensitivity-confclass-marginal-summary-table,results='asis'>>=
+saved_results$tables$combined$confclass.summary = generateSensitivitySummaryTable(data, quote(zyg %in% c("RA", "AA")), .(muttype, confidence_class, zyg), ci_method = CI_MODEL, ci_level = CI_LEVEL)
+temp_counts_lists = llply(data, function(d) marginalizePerformance(d$class_subsets.performance_thresholded, quote(zyg %in% c("RA", "AA")), .(muttype, confidence_class, zyg)))
+temp_counts = temp_counts_lists[[1]]
+for (i in seq_along(temp_counts_lists[-1]))
+{
+    temp_counts$ntp = temp_counts$ntp + temp_counts_lists[[i + 1]]$ntp
+    temp_counts$nfn = temp_counts$nfn + temp_counts_lists[[i + 1]]$nfn
+}
+temp_counts = temp_counts[,c("muttype", "confidence_class", "zyg", "ntp", "nfn")]
+print(convertSensitivitySummaryTableToXTable(saved_results$tables$combined$confclass.summary, total_var_count = temp_counts, caption = "SNV sensitivity: summary", ci_heading = CI_HEADING), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
+
 \subsubsection{Single nucleotide variants}
 
 % SENSITIVITY: SNVs
 % --------------------------------------------------------------------
 
-<<sensitivity-snv-marginal-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<sensitivity-snv-marginal-plots>>=
 ggplot(relabelZyg(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg), model = CI_MODEL, conf_level = CI_LEVEL)), 
     aes(x = zyg, y = sens.est, fill = zyg)) + 
     geom_bar(stat = "identity", position = "dodge") + 
@@ -271,7 +315,7 @@ print(convertSensitivityCountTableToXTable(saved_results$tables$snv$zyg.sample, 
 
 
 
-<<sensitivity-snv-bydepth-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<sensitivity-snv-bydepth-plots>>=
 ggplot(dropDepthUnknown(relabelZyg(calcPerformanceStats(data, quote(muttype == "Subst" & zyg %in% c("RA", "AA")), .(zyg, depth), model = CI_MODEL, conf_level = CI_LEVEL))),
     aes(x = depth, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
@@ -305,7 +349,7 @@ print(convertSensitivityCountTableToXTable(saved_results$tables$snv$zyg.depth.sa
 % --------------------------------------------------------------------
 
 \subsubsection{Insertions}
-<<sensitivity-ins-bysize-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<sensitivity-ins-bysize-plots>>=
 ggplot(dropSizeZero(relabelZyg(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL))), 
     aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
@@ -337,12 +381,41 @@ print(convertSensitivityCountTableToXTable(saved_results$tables$ins$zyg.mutsize.
 @
 
 
+<<sensitivity-ins-bysizedepth-plots,fig.width=8,out.width='4in'>>=
+ggplot(dropSizeZero(relabelZyg(calcPerformanceStats(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize_binned, depth), model = CI_MODEL, conf_level = CI_LEVEL))), 
+    aes(x = depth, y = sens.est, group = zyg, colour = zyg)) + 
+    geom_line() + 
+    geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
+    geom_point(size = 2, shape = 21, fill = "white") + 
+    labs(x = "Sequence depth (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Insertion Detection Performance vs Size, Depth") + 
+    theme_bw() + ylim(0, 1) + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) + facet_wrap(~ mutsize_binned)
+
+ggplot(dropSizeZero(dropDepthUnknown(relabelZyg(ins_vs_sizedepth.melted))), 
+    aes(x = depth, y = count, lty = sample, shape = sample, colour = zyg, group = sample:zyg)) + 
+    geom_line() + geom_point(size = 2, fill = "white") + 
+    labs(x = "Sequence depth (inclusive)", y = "Variants with this depth", title = "Insertion Counts vs Size, Depth", colour = "Zygosity", shape = "Sample Label", lty = "Sample Label") + 
+    theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) + facet_wrap(~ mutsize_binned)
+@
+
+
+<<sensitivity-ins-bysizedepth-summary-table,results='asis'>>=
+saved_results$tables$ins$zyg.mutsizedepth.summary = generateSensitivitySummaryTable(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize_binned, depth), ci_method = CI_MODEL, ci_level = CI_LEVEL)
+temp_counts = dropDepthUnknown(dropSizeZero(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize_binned, depth))))
+print(convertSensitivitySummaryTableToXTable(saved_results$tables$ins$zyg.mutsizedepth.summary, total_var_count = temp_counts, caption = "Insertion sensitivity by size, depth: summary", ci_heading = CI_HEADING), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
+<<sensitivity-ins-bysizedepth-persample-table,results='asis'>>=
+saved_results$tables$ins$zyg.mutsizedepth.sample = generateSensitivityCountTable(data, quote(muttype == "Ins" & zyg %in% c("RA", "AA")), .(zyg, mutsize_binned, depth))
+print(convertSensitivityCountTableToXTable(saved_results$tables$ins$zyg.mutsizedepth.sample, caption = "Insertion sensitivity by size, depth: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
+
 
 % SENSITIVITY: DELETIONS
 % --------------------------------------------------------------------
 
 \subsubsection{Deletions}
-<<sensitivity-del-bysize-plots,fig.width=5,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<sensitivity-del-bysize-plots>>=
 ggplot(dropSizeZero(relabelZyg(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize), model = CI_MODEL, conf_level = CI_LEVEL))), 
     aes(x = mutsize, y = sens.est, group = zyg, colour = zyg)) + 
     geom_line() + 
@@ -372,12 +445,41 @@ print(convertSensitivityCountTableToXTable(saved_results$tables$del$zyg.mutsize.
 @
 
 
+<<sensitivity-del-bysizedepth-plots,fig.width=8,out.width='4in'>>=
+ggplot(dropSizeZero(relabelZyg(calcPerformanceStats(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize_binned, depth), model = CI_MODEL, conf_level = CI_LEVEL))), 
+    aes(x = depth, y = sens.est, group = zyg, colour = zyg)) + 
+    geom_line() + 
+    geom_ribbon(aes(ymin = sens.lcl, ymax = sens.ucl, fill = zyg), alpha = 0.25, colour = NA) + 
+    geom_point(size = 2, shape = 21, fill = "white") + 
+    labs(x = "Sequence depth (inclusive)", y = "Sensitivity", fill = "Zygosity", colour = "Zygosity", title = "Deletion Detection Performance vs Size, Depth") + 
+    theme_bw() + ylim(0, 1) + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) + facet_wrap(~ mutsize_binned)
+
+ggplot(dropSizeZero(dropDepthUnknown(relabelZyg(ins_vs_sizedepth.melted))), 
+    aes(x = depth, y = count, lty = sample, shape = sample, colour = zyg, group = sample:zyg)) + 
+    geom_line() + geom_point(size = 2, fill = "white") + 
+    labs(x = "Sequence depth (inclusive)", y = "Variants with this depth", title = "Deletion Counts vs Size, Depth", colour = "Zygosity", shape = "Sample Label", lty = "Sample Label") + 
+    theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) + facet_wrap(~ mutsize_binned)
+@
+
+
+<<sensitivity-del-bysizedepth-summary-table,results='asis'>>=
+saved_results$tables$del$zyg.mutsizedepth.summary = generateSensitivitySummaryTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize_binned, depth), ci_method = CI_MODEL, ci_level = CI_LEVEL)
+temp_counts = dropDepthUnknown(dropSizeZero(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize_binned, depth))))
+print(convertSensitivitySummaryTableToXTable(saved_results$tables$del$zyg.mutsizedepth.summary, total_var_count = temp_counts, caption = "Deletion sensitivity by size, depth: summary", ci_heading = CI_HEADING), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
+<<sensitivity-del-bysizedepth-persample-table,results='asis'>>=
+saved_results$tables$del$zyg.mutsizedepth.sample = generateSensitivityCountTable(data, quote(muttype == "Del" & zyg %in% c("RA", "AA")), .(zyg, mutsize_binned, depth))
+print(convertSensitivityCountTableToXTable(saved_results$tables$ins$zyg.mutsizedepth.sample, caption = "Deletion sensitivity by size, depth: per sample"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
+
 
 % FALSE POSITIVE RATE
 % --------------------------------------------------------------------
 
 \subsection{False positive rate}
-<<falsepositive-plots,fig.width=7,fig.height=5,out.width='2.5in',fig.show='hold'>>=
+<<falsepositive-calcs>>=
 # FPR here is defined as number of FP calls per megabase of sequence within
 # the subset under consideration.  Unfortunately, this denominator (the
 # megabases of sequence in the subset) is not exactly known, as it cannot
@@ -453,6 +555,12 @@ fpr.vs_depth$bfpr.lcl = fpr.vs_depth$fpr.lcl * fpr.N/fpr.S * 1e6
 fpr.vs_depth$bfpr.ucl = fpr.vs_depth$fpr.ucl * fpr.N/fpr.S * 1e6
 
 
+temp.aggregate_fpr = mean(colSums(fpr.NFPi))/temp.size_gold*1e6
+temp.aggregate_fpr_range = range(colSums(fpr.NFPi))/temp.size_gold*1e6
+@
+
+
+<<falsepositive-plots,fig.width=7>>=
 # Plot BFPRi ~ depth.  This is averaged over the replicate samples.
 ggplot(dropDepthUnknown(fpr.vs_depth), aes(x = depth, y = bfpr.est, ymin = bfpr.lcl, ymax = bfpr.ucl)) + 
     geom_bar(stat = "identity") + 
@@ -460,27 +568,16 @@ ggplot(dropDepthUnknown(fpr.vs_depth), aes(x = depth, y = bfpr.est, ymin = bfpr.
     labs(x = "Sequence depth (inclusive)", y = "False positives per Mb (approx.)", title = "False Positive Rate: Effect of Depth") + 
     theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
 
-
 # Now create an accessory plot showing the number of variants in each
 # depth class.  This varies per sample, so work from the variants_vs_depth structure.
 ggplot(dropDepthUnknown(variants_vs_depth.melted), aes(x = depth, y = count, group = sample, colour = sample)) + 
     geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
     labs(x = "Sequence depth (inclusive)", y = "Variant positions with this depth", title = "Variant Count vs Depth", colour = "Sample Label") + 
     theme_bw() + theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
-
-
-# Finally create a plot which is effectively the combination of the
-# previous two.  This is, for each sample, the number of false positive
-# variants in each depth class.
-# fpr.NFPi_melted = melt(fpr.NFPi, value.name = "count")
-
-# ggplot(dropDepthUnknown(fpr.NFPi_melted), aes(x = depth, y = count, group = sample, colour = sample)) + 
-#     geom_line() + geom_point(size = 2, shape = 21, fill = "white") + 
-#     labs(x = "Sequence depth (inclusive)", y = "False positives with this depth", title = "False Positive Count: Effect of Depth") + 
-#     theme_bw()
 @
 
-Averaged across all samples and depths, the aggregate false positive rate was \Sexpr{formatC(mean(colSums(fpr.NFPi))/temp.size_gold*1e6, format = "f", digits = 2)} (range $\Sexpr{formatC(min(colSums(fpr.NFPi))/temp.size_gold*1e6, format = "f", digits = 2)}-\Sexpr{formatC(max(colSums(fpr.NFPi))/temp.size_gold*1e6, format = "f", digits = 2)}$) false positive calls per megabase.
+
+% Averaged across all samples and depths, the aggregate false positive rate was \Sexpr{formatC(temp.aggregate_fpr, format = "f", digits = 2)} (range $\Sexpr{formatC(temp.aggregate_fpr_range[1], format = "f", digits = 2)}-\Sexpr{formatC(temp.aggregate_fpr_range[2], format = "f", digits = 2)}$) false positive calls per megabase.
 
 
 <<falsepositive-table,results='asis'>>=

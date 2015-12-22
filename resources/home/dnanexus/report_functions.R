@@ -22,27 +22,96 @@ formatC2 = function(x, ...)
 }
 
 
-relabelZyg = function(data)
+categoriseCallConfidence = function(data)
 {
-    if ("zyg" %in% colnames(data))
-        data$zyg = ordered(c("RR" = "HomRef", "RA" = "Het", "AA" = "HomAlt", "AB" = "HetAlt")[as.character(data$zyg)], levels = c("Hom", "Het", "HomAlt", "HetAlt"))
-    data
+    # From https://kccg.garvan.org.au/confluence/display/CI/2015-12-02+Meeting+notes:
+    # Variants that pass VQSR are to be broken down into four confidence classes, based on variant type, size, and sequence depth around the variant:
+    #   * Class H (High confidence): >99% sensitivity
+    #   * Class M (Medium confidence): >95% sensitivity
+    #   * Class L (Limited confidence): >80% sensitivity
+    #   * Class S (Suggestive): <= 80% sensitivity
+    # The criteria for each VQSR-passing variant were defined on the basis of the latest WGS performance report (based on sequence from eight NA12878 robot-made libraries):
+    #   * SNV:
+    #      * Depth >= 20X:                  Class H
+    #      * 20X > Depth >= 15X:            Class M
+    #      * 15X > Depth >= 10X:            Class L
+    #      * 10X > Depth:                   Class S
+    #   * Ins, size [1,19] (short ins):
+    #      * Depth >= 20X:                  Class M
+    #      * 20X > Depth >= 15X:            Class L
+    #      * 15X > Depth:                   Class S
+    #   * Ins, size [20,inf) (long ins):    Class S
+    #   * Del, size [1,19] (short del):
+    #      * Depth >= 10X:                  Class M
+    #      * 10X > Depth:                   Class S
+    #   * Del, size [20,inf) (long del):    Class S
+    # These classes can also be applied to a test sample BAM, to place genomic regions into confidence classes for callability.  Three tracks will result, being callability class for SNVs, short ins/dels, and long ins/dels.
+
+    llply(data, function (d) {
+        perf = d$class_subsets.performance_thresholded
+        perf$mutsize_binned = NA
+        perf$mutsize_binned[perf$mutsize == "0"] = "0"
+        perf$mutsize_binned[perf$mutsize > "0" & perf$mutsize < "20-29"] = "1-19"
+        perf$mutsize_binned[perf$mutsize >= "20-29"] = "20+"
+        perf$mutsize_binned = ordered(perf$mutsize_binned, levels = c("0", "1-19", "20+"))
+        perf$confidence_class = "Unclassified"
+        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "20-24"] = "High"
+        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "15-19" & perf$depth < "20-24"] = "Medium"
+        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "10-14" & perf$depth < "15-24"] = "Limited"
+        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth < "10-14"] = "Suggestive"
+        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize < "20-29" & perf$depth >= "20-24"] = "Medium"
+        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize < "20-29" & perf$depth >= "15-19" & perf$depth < "20-24"] = "Limited"
+        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize < "20-29" & perf$depth < "15-19"] = "Suggestive"
+        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize >= "20-29"] = "Suggestive"
+        perf$confidence_class[perf$muttype == "Del" & perf$mutsize < "20-29" & perf$depth >= "10-14"] = "Medium"
+        perf$confidence_class[perf$muttype == "Del" & perf$mutsize < "20-29" & perf$depth < "10-14"] = "Suggestive"
+        perf$confidence_class[perf$muttype == "Del" & perf$mutsize >= "20-29"] = "Suggestive"
+        perf$confidence_class = ordered(perf$confidence_class, levels = c("TBD", "Unclassified", "Suggestive", "Limited", "Medium", "High"))
+        d$class_subsets.performance_thresholded = perf
+        d
+    })
 }
 
 
-dropSizeZero = function(data)
+relabelZyg = function(perfstats)
 {
-    if ("mutsize" %in% colnames(data))
-        data = data[data$mutsize != "0",]
-    data
+    if ("zyg" %in% colnames(perfstats))
+        perfstats$zyg = ordered(c("RR" = "HomRef", "RA" = "Het", "AA" = "HomAlt", "AB" = "HetAlt")[as.character(perfstats$zyg)], levels = c("Hom", "Het", "HomAlt", "HetAlt"))
+    perfstats
 }
 
 
-dropDepthUnknown = function(data)
+relabelMuttype = function(perfstats)
 {
-    if ("depth" %in% colnames(data))
-        data = data[data$depth != "Unknown",]
-    data
+    if ("muttype" %in% colnames(perfstats))
+        perfstats$muttype = ordered(c("Subst" = "SNVs", "Ins" = "Insertions", "Del" = "Deletions", "Other" = "Other", "None" = "None")[as.character(perfstats$muttype)], levels = c("SNVs", "Insertions", "Deletions", "Other", "None"))
+    perfstats
+}
+
+
+dropSizeZero = function(perfstats)
+{
+    if ("mutsize" %in% colnames(perfstats))
+        perfstats = perfstats[perfstats$mutsize != "0",]
+    if ("mutsize_binned" %in% colnames(perfstats))
+        perfstats = perfstats[perfstats$mutsize_binned != "0",]
+    perfstats
+}
+
+
+dropDepthUnknown = function(perfstats)
+{
+    if ("depth" %in% colnames(perfstats))
+        perfstats = perfstats[perfstats$depth != "Unknown",]
+    perfstats
+}
+
+
+dropMuttypesOtherNone = function(perfstats)
+{
+    if ("muttype" %in% colnames(perfstats))
+        perfstats = perfstats[!(perfstats$muttype %in% c("Other", "None")),]
+    perfstats
 }
 
 
@@ -74,6 +143,9 @@ giveTablePrettyHeaders = function(tbl)
         "zyg" = "Zygosity",
         "depth" = "Depth",
         "mutsize" = "Size",
+        "mutsize_binned" = "Size",
+        "muttype" = "Variant class",
+        "confidence_class" = "Confidence class",
         "ntp" = "True positives",
         "nfn" = "False negatives",
         # "n" = "Total variants",
@@ -104,9 +176,12 @@ convertSensitivitySummaryTableToXTable = function(tbl, total_var_counts = NULL, 
     # total_var_counts must be generated by a call like: total_var_counts = dropSizeZero(marginalizePerformance(data[[1]]$class_subsets.performance_thresholded, subset, vars))
     tbl[,"CI"] = paste("$", tbl[,"CI"], "$", sep = "")
     colnames(tbl)[colnames(tbl) == "CI"] = ci_heading
+    nvars = ncol(tbl) - 2
 
     if (!is.null(total_var_counts))
     {
+        # TODO: Should check that rows of tbl and total_var_counts match.  Not trivial
+        # at this time, as columns are renamed, and factor codings are changed.
         old_colnames = colnames(tbl)
         n = ncol(tbl)
         tbl = cbind(tbl[,1:(n-2)], total_var_counts$ntp + total_var_counts$nfn, tbl[,(n-1):n])
