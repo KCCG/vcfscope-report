@@ -225,22 +225,22 @@ variants_vs_depth = matrix(unlist(variants_vs_depth), ncol = length(data), dimna
 colnames(variants_vs_depth) = data.labels[colnames(variants_vs_depth)]
 variants_vs_depth.melted = melt(variants_vs_depth, value.name = "count")
 
-substs_vs_depth = laply(data, function(x) daply(subset(x$class_subsets.performance_thresholded, muttype == "Subst" & zyg %in% c("RA", "AA")), .(depth, zyg), function(y) sum(y$ntp + y$nfn)))
+substs_vs_depth = laply(data, function(x) daply(subset(x$class_subsets.performance_thresholded, muttype == "Subst" & zyg %in% c("RA", "AA")), .(depth, zyg), function(y) sum(y$ntp + y$nfn)), .drop = FALSE)
 names(dimnames(substs_vs_depth)) = c("sample", "depth", "zyg")
 dimnames(substs_vs_depth)$sample = data.labels[names(data)]
-substs_vs_depth = substs_vs_depth[,,c("RA", "AA")]
+substs_vs_depth = substs_vs_depth[,,c("RA", "AA"),drop=FALSE]
 substs_vs_depth.melted = melt(substs_vs_depth, value.name = "count")
 
-ins_vs_sizedepth = laply(data, function(x) daply(subset(x$class_subsets.performance_thresholded, muttype == "Ins" & zyg %in% c("RA", "AA")), .(depth, mutsize_binned, zyg), function(y) sum(y$ntp + y$nfn)))
+ins_vs_sizedepth = laply(data, function(x) daply(subset(x$class_subsets.performance_thresholded, muttype == "Ins" & zyg %in% c("RA", "AA")), .(depth, mutsize_binned, zyg), function(y) sum(y$ntp + y$nfn)), .drop = FALSE)
 names(dimnames(ins_vs_sizedepth)) = c("sample", "depth", "mutsize_binned", "zyg")
 dimnames(ins_vs_sizedepth)$sample = data.labels[names(data)]
-ins_vs_sizedepth = ins_vs_sizedepth[,,,c("RA", "AA")]
+ins_vs_sizedepth = ins_vs_sizedepth[,,,c("RA", "AA"),drop=FALSE]
 ins_vs_sizedepth.melted = melt(ins_vs_sizedepth, value.name = "count")
 
-del_vs_sizedepth = laply(data, function(x) daply(subset(x$class_subsets.performance_thresholded, muttype == "Del" & zyg %in% c("RA", "AA")), .(depth, mutsize_binned, zyg), function(y) sum(y$ntp + y$nfn)))
+del_vs_sizedepth = laply(data, function(x) daply(subset(x$class_subsets.performance_thresholded, muttype == "Del" & zyg %in% c("RA", "AA")), .(depth, mutsize_binned, zyg), function(y) sum(y$ntp + y$nfn)), .drop = FALSE)
 names(dimnames(del_vs_sizedepth)) = c("sample", "depth", "mutsize_binned", "zyg")
 dimnames(del_vs_sizedepth)$sample = data.labels[names(data)]
-del_vs_sizedepth = del_vs_sizedepth[,,,c("RA", "AA")]
+del_vs_sizedepth = del_vs_sizedepth[,,,c("RA", "AA"),drop=FALSE]
 del_vs_sizedepth.melted = melt(del_vs_sizedepth, value.name = "count")
 @
 
