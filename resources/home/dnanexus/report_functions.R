@@ -3,6 +3,8 @@ library(scales)
 library(plyr)
 suppressPackageStartupMessages(library(lme4))
 
+suppressPackageStartupMessages(library(robustbase)) # For Qn
+
 suppressPackageStartupMessages(library(rstan))
 suppressPackageStartupMessages(library(coda))       # For HPDinterval
 STAN_LOGIT = stan_model("logit.stan")
