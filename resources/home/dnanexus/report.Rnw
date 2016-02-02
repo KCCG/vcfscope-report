@@ -277,7 +277,7 @@ for (i in seq_along(temp_counts_lists[-1]))
     temp_counts$nfn = temp_counts$nfn + temp_counts_lists[[i + 1]]$nfn
 }
 temp_counts = temp_counts[,c("muttype", "confidence_class", "zyg", "ntp", "nfn")]
-print(convertSensitivitySummaryTableToXTable(saved_results$tables$combined$confclass.summary, total_var_count = temp_counts, caption = "SNV sensitivity: summary", ci_heading = CI_HEADING), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+print(convertSensitivitySummaryTableToXTable(saved_results$tables$combined$confclass.summary, total_var_count = temp_counts, caption = "Variant sensitivity by confidence class", ci_heading = CI_HEADING), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
@@ -560,6 +560,27 @@ temp.aggregate_fpr_range = range(colSums(fpr.NFPi))/temp.size_gold*1e6
 @
 
 
+
+
+<<falsepositive-overall-table,results='asis'>>=
+fpr.NFP = sapply(data, function(x) sum(x$class_subsets.performance_thresholded$nfp))
+temp = data.frame(
+    Sample = data.labels[names(fpr.NFP)], 
+    nFP = fpr.NFP,
+    Total = fpr.S
+)
+rownames(temp) = NULL
+temp$FPR = temp$nFP / temp$Total * 1e6
+
+colnames(temp) = c("Sample label", "False positive calls", "Bases analysed", "FPR estimate (false positive calls per Mb)")
+saved_results$tables$fpr.sample = temp
+
+print(xtable(temp, caption = "Overall false positive rate (false positives per megabase)"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+@
+
+Averaged across all samples, the median marginal false positive rate was \Sexpr{formatC(median(temp$FPR), format = "f", digits = 2)} (range \Sexpr{formatC(min(temp$FPR), format = "f", digits = 2)}-\Sexpr{formatC(max(temp$FPR), format = "f", digits = 2)}, Qn \Sexpr{formatC(Qn(temp$FPR), format = "f", digits = 2)}) false positive calls per megabase.
+
+
 <<falsepositive-plots,fig.width=7>>=
 # Plot BFPRi ~ depth.  This is averaged over the replicate samples.
 ggplot(dropDepthUnknown(fpr.vs_depth), aes(x = depth, y = bfpr.est, ymin = bfpr.lcl, ymax = bfpr.ucl)) + 
@@ -580,15 +601,15 @@ ggplot(dropDepthUnknown(variants_vs_depth.melted), aes(x = depth, y = count, gro
 % Averaged across all samples and depths, the aggregate false positive rate was \Sexpr{formatC(temp.aggregate_fpr, format = "f", digits = 2)} (range $\Sexpr{formatC(temp.aggregate_fpr_range[1], format = "f", digits = 2)}-\Sexpr{formatC(temp.aggregate_fpr_range[2], format = "f", digits = 2)}$) false positive calls per megabase.
 
 
-<<falsepositive-table,results='asis'>>=
+<<falsepositive-depth-table,results='asis'>>=
 temp = fpr.vs_depth
 temp = temp[temp$depth != "Unknown",c("depth", "bfpr.est", "bfpr.lcl", "bfpr.ucl")]
 temp[,3] = sprintf("$%.2f-%.2f$", temp[,3], temp[,4])
 temp = temp[,-4]
 colnames(temp) = c("Depth", "FPR estimate", sprintf("$%d\\%%$ CI", as.integer(round(CI_LEVEL*100))))
-saved_results$tables$fpr = temp
+saved_results$tables$fpr.depth.sample = temp
 
-print(xtable(temp, caption = "Approximate false positive rate (false positives per megabase)"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
+print(xtable(temp, caption = "Approximate false positive rate versus depth (false positives per megabase)"), sanitize.text.function = function(x) x, include.rownames = FALSE, hline.after = c(-1, 0), tabular.environment = "longtable", caption.placement = "top")
 @
 
 
