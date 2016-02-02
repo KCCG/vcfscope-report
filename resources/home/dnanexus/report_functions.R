@@ -51,6 +51,11 @@ categoriseCallConfidence = function(data)
 
     llply(data, function (d) {
         perf = d$class_subsets.performance_thresholded
+        perf$mutsize_binned = NA
+        perf$mutsize_binned[perf$mutsize == "0"] = "0"
+        perf$mutsize_binned[perf$mutsize > "0" & perf$mutsize < "20-29"] = "1-19"
+        perf$mutsize_binned[perf$mutsize >= "20-29"] = "20+"
+        perf$mutsize_binned = ordered(perf$mutsize_binned, levels = c("0", "1-19", "20+"))
         perf$confidence_class = "Unclassified"
         perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "20-24"] = "HighConfidence"
         perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "15-19" & perf$depth < "20-24"] = "Confident"
@@ -110,6 +115,14 @@ dropMuttypesOtherNone = function(perfstats)
 {
     if ("muttype" %in% colnames(perfstats))
         perfstats = perfstats[!(perfstats$muttype %in% c("Other", "None")),]
+    perfstats
+}
+
+
+dropConfidenceClassUnknown = function(perfstats)
+{
+    if ("confidence_class" %in% colnames(perfstats))
+        perfstats = perfstats[perfstats$confidence_class != "Unclassified",]
     perfstats
 }
 
