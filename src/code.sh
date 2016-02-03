@@ -52,6 +52,14 @@ main() {
     R CMD INSTALL ${RPACKAGE}
   done
 
+  # Install robustbase and dependencies
+  RPACKAGES=(DEoptimR_1.0-4.tar.gz robustbase_0.92-5.tar.gz)
+  for RPACKAGE in ${RPACKAGES[*]}; do
+    dx download "${DX_ASSETS_ID}:/assets/${RPACKAGE}"
+    R CMD INSTALL ${RPACKAGE}
+  done
+
+
   # Fetch inputs
   dx-download-all-inputs --parallel
 

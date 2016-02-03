@@ -3,6 +3,8 @@ library(scales)
 library(plyr)
 suppressPackageStartupMessages(library(lme4))
 
+suppressPackageStartupMessages(library(robustbase)) # For Qn
+
 suppressPackageStartupMessages(library(rstan))
 suppressPackageStartupMessages(library(coda))       # For HPDinterval
 STAN_LOGIT = stan_model("logit.stan")
@@ -24,28 +26,28 @@ formatC2 = function(x, ...)
 
 categoriseCallConfidence = function(data)
 {
-    # From https://kccg.garvan.org.au/confluence/display/CI/2015-12-02+Meeting+notes:
-    # Variants that pass VQSR are to be broken down into four confidence classes, based on variant type, size, and sequence depth around the variant:
-    #   * Class H (High confidence): >99% sensitivity
-    #   * Class M (Medium confidence): >95% sensitivity
-    #   * Class L (Limited confidence): >80% sensitivity
-    #   * Class S (Suggestive): <= 80% sensitivity
-    # The criteria for each VQSR-passing variant were defined on the basis of the latest WGS performance report (based on sequence from eight NA12878 robot-made libraries):
+    # From https://kccg.garvan.org.au/confluence/display/DQMS/NATA-346+-+Editable+Copy+-+Appendix+1%3A+Analytical+Performance
+    # Variants that pass VQSR are to be broken down into four sensitivity classes, based on variant type, size, and sequence depth around the variant:
+    #   * Class H (High confidence):    99% <= s
+    #   * Class C (Confident):          95% <= s < 99%
+    #   * Class L (Limited confidence): 80% <= s < 95%
+    #   * Class I (Indicative):         s < 80%
+    # The criteria for each VQSR-passing variant were defined on the basis of the latest WGS performance report:
     #   * SNV:
     #      * Depth >= 20X:                  Class H
-    #      * 20X > Depth >= 15X:            Class M
+    #      * 20X > Depth >= 15X:            Class C
     #      * 15X > Depth >= 10X:            Class L
-    #      * 10X > Depth:                   Class S
+    #      * 10X > Depth:                   Class I
     #   * Ins, size [1,19] (short ins):
-    #      * Depth >= 20X:                  Class M
+    #      * Depth >= 20X:                  Class C
     #      * 20X > Depth >= 15X:            Class L
-    #      * 15X > Depth:                   Class S
-    #   * Ins, size [20,inf) (long ins):    Class S
+    #      * 15X > Depth:                   Class I
+    #   * Ins, size [20,inf) (long ins):    Class I
     #   * Del, size [1,19] (short del):
-    #      * Depth >= 10X:                  Class M
-    #      * 10X > Depth:                   Class S
-    #   * Del, size [20,inf) (long del):    Class S
-    # These classes can also be applied to a test sample BAM, to place genomic regions into confidence classes for callability.  Three tracks will result, being callability class for SNVs, short ins/dels, and long ins/dels.
+    #      * Depth >= 10X:                  Class C
+    #      * 10X > Depth:                   Class I
+    #   * Del, size [20,inf) (long del):    Class I
+    #   * MNV:                              Class I
 
     llply(data, function (d) {
         perf = d$class_subsets.performance_thresholded
@@ -55,18 +57,20 @@ categoriseCallConfidence = function(data)
         perf$mutsize_binned[perf$mutsize >= "20-29"] = "20+"
         perf$mutsize_binned = ordered(perf$mutsize_binned, levels = c("0", "1-19", "20+"))
         perf$confidence_class = "Unclassified"
-        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "20-24"] = "High"
-        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "15-19" & perf$depth < "20-24"] = "Medium"
-        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "10-14" & perf$depth < "15-24"] = "Limited"
-        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth < "10-14"] = "Suggestive"
-        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize < "20-29" & perf$depth >= "20-24"] = "Medium"
-        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize < "20-29" & perf$depth >= "15-19" & perf$depth < "20-24"] = "Limited"
-        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize < "20-29" & perf$depth < "15-19"] = "Suggestive"
-        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize >= "20-29"] = "Suggestive"
-        perf$confidence_class[perf$muttype == "Del" & perf$mutsize < "20-29" & perf$depth >= "10-14"] = "Medium"
-        perf$confidence_class[perf$muttype == "Del" & perf$mutsize < "20-29" & perf$depth < "10-14"] = "Suggestive"
-        perf$confidence_class[perf$muttype == "Del" & perf$mutsize >= "20-29"] = "Suggestive"
-        perf$confidence_class = ordered(perf$confidence_class, levels = c("TBD", "Unclassified", "Suggestive", "Limited", "Medium", "High"))
+        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "20-24"] = "HighConfidence"
+        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "15-19" & perf$depth < "20-24"] = "Confident"
+        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth >= "10-14" & perf$depth < "15-19"] = "LimitedConfidence"
+        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize == "1" & perf$depth < "10-14"] = "Indicative"
+        perf$confidence_class[perf$muttype == "Subst" & perf$mutsize > "1"] = "Indicative"
+        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize < "20-29" & perf$depth >= "20-24"] = "Confident"
+        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize < "20-29" & perf$depth >= "15-19" & perf$depth < "20-24"] = "LimitedConfidence"
+        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize < "20-29" & perf$depth < "15-19"] = "Indicative"
+        perf$confidence_class[perf$muttype == "Ins" & perf$mutsize >= "20-29"] = "Indicative"
+        perf$confidence_class[perf$muttype == "Del" & perf$mutsize < "20-29" & perf$depth >= "10-14"] = "Confident"
+        perf$confidence_class[perf$muttype == "Del" & perf$mutsize < "20-29" & perf$depth < "10-14"] = "Indicative"
+        perf$confidence_class[perf$muttype == "Del" & perf$mutsize >= "20-29"] = "Indicative"
+        perf$confidence_class[perf$muttype == "Other"] = "Indicative"
+        perf$confidence_class = ordered(perf$confidence_class, levels = c("Unclassified", "Indicative", "LimitedConfidence", "Confident", "HighConfidence"))
         d$class_subsets.performance_thresholded = perf
         d
     })
@@ -111,6 +115,14 @@ dropMuttypesOtherNone = function(perfstats)
 {
     if ("muttype" %in% colnames(perfstats))
         perfstats = perfstats[!(perfstats$muttype %in% c("Other", "None")),]
+    perfstats
+}
+
+
+dropConfidenceClassUnknown = function(perfstats)
+{
+    if ("confidence_class" %in% colnames(perfstats))
+        perfstats = perfstats[perfstats$confidence_class != "Unclassified",]
     perfstats
 }
 
